@@ -34,7 +34,7 @@ public class Stats {
         }
 
         public long[] toArray() {
-            int cnt = _count.get();
+            int cnt = Math.min(1024, _count.get());
 
             long[] vals = new long[cnt];
             for (int i = 0; i < cnt; i++) {
@@ -72,7 +72,7 @@ public class Stats {
         }
 
         public double[] toArray() {
-            int cnt = _count.get();
+            int cnt = Math.min(1024, _count.get());
 
             double[] vals = new double[cnt];
             for (int i = 0; i < cnt; i++) {

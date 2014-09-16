@@ -4,19 +4,29 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.EnumSet;
 
 public class Executor extends AbstractExecutorService {
 
-    public interface Controller {
-        boolean shouldIncrement(int currThreads);
-        int adjustment(Stats stats);
+    public enum Metrics {
+        QUEUE_LENGTH,
+        QUEUE_LATENCY,
+        TASK_LATENCY,
+        TASK_RATE,
+        UTILIZATION
     }
+
+
 
     private final ThreadFactory _threadFactory;
     private final BlockingQueue _queue;
     private final CopyOnWriteArrayList<Worker> _workers = new CopyOnWriteArrayList<Worker>();
     private final AtomicInteger _workerCount = new AtomicInteger(0);
     private final Controller _controller;
+
+    private final EnumSet _metrics;
+    private final boolean _measureQueueLatency;
+    private final boolean _measureTaskLatency;
 
     private boolean _isShutdown = false;
 
@@ -46,6 +56,9 @@ public class Executor extends AbstractExecutorService {
         private final Thread _thread;
 
         Worker() {
+
+            final boolean taskRate = _metrics.contains(Metrics.TASK_RATE);
+
             Runnable runnable =
                 new Runnable() {
                     public void run() {
@@ -62,7 +75,9 @@ public class Executor extends AbstractExecutorService {
 
                                     } finally {
                                         _runnable = null;
-                                        _completed.incrementAndGet();
+                                        if (taskRate) {
+                                            _completed.incrementAndGet();
+                                        }
                                     }
                                 }
                             }
@@ -95,10 +110,19 @@ public class Executor extends AbstractExecutorService {
 
     private static AtomicInteger _numExecutors = new AtomicInteger(0);
 
-    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Controller controller, long samplePeriod, long controlPeriod, TimeUnit unit) {
+    /**
+     * @param threadFactory the ThreadFactory used by the executor
+     * @param queue the queue that holds Runnable objects waiting to be executed
+     * @param controller the Controller object that
+     */
+    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Controller controller, EnumSet<Metrics> metrics, long samplePeriod, long controlPeriod, TimeUnit unit) {
+
         _threadFactory = threadFactory;
         _queue = queue;
         _controller = controller;
+        _metrics = metrics;
+        _measureQueueLatency = _metrics.contains(Metrics.QUEUE_LATENCY);
+        _measureTaskLatency = _metrics.contains(Metrics.TASK_LATENCY);
 
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
@@ -111,28 +135,13 @@ public class Executor extends AbstractExecutorService {
             "dirigiste-controller-" + _numExecutors.getAndIncrement()).start();
     }
 
-    /**
-     * Returns an executor which aims for a level of utilization, from 0 to 1, but will not
-     * use more than maxThreads at a time.
-     */
-    public static Executor utilizationExecutor(final double targetUtilization, final int maxThreadCount) {
-        Controller controller = new Controller() {
-                public boolean shouldIncrement(int numWorkers) {
-                    return numWorkers < maxThreadCount;
-                }
-
-                public int adjustment(Stats stats) {
-                    double utilization = stats.getUtilization(0.9) / targetUtilization;
-                    return (int) (stats.getWorkerCount() * utilization) - stats.getWorkerCount();
-                }
-            };
-
-        return new Executor(Executors.defaultThreadFactory(), new SynchronousQueue(), controller, 25, 10000, TimeUnit.MILLISECONDS);
-    }
-
     private void startControlLoop(int duration, int iterations) {
 
-        final double samplesPerSecond = 1000.0 / duration;
+        boolean measureUtilization = _metrics.contains(Metrics.UTILIZATION);
+        boolean measureTaskRate = _metrics.contains(Metrics.TASK_RATE);
+        boolean measureQueueLength = _metrics.contains(Metrics.QUEUE_LENGTH);
+
+        double samplesPerSecond = 1000.0 / duration;
         int iteration = 0;
 
         try {
@@ -142,7 +151,10 @@ public class Executor extends AbstractExecutorService {
                 long start = System.currentTimeMillis();
 
                 // gather stats
-                _queueLengths.get().sample(_queue.size());
+                if (measureQueueLength) {
+                    _queueLengths.get().sample(_queue.size());
+                }
+
                 int active = 0;
                 int cnt = _workers.size();
                 int tasks = 0;
@@ -152,8 +164,14 @@ public class Executor extends AbstractExecutorService {
                     }
                     tasks += w._completed.getAndSet(0);
                 }
-                _utilizations.get().sample((double) active / cnt);
-                _taskRates.get().sample(tasks * samplesPerSecond);
+
+                if (measureUtilization) {
+                    _utilizations.get().sample((double) active / cnt);
+                }
+
+                if (measureTaskRate) {
+                    _taskRates.get().sample(tasks * samplesPerSecond);
+                }
 
                 // update worker count
                 if (iteration == 0) {
@@ -195,15 +213,14 @@ public class Executor extends AbstractExecutorService {
     }
 
     /**
-     * Returns the last aggregate statistics given to the control loop.
+     * @returns the last aggregate statistics given to the control loop.
      */
     public Stats getLastStats() {
         return _stats;
     }
 
     /**
-     * Calculates and returns the aggregate statistics for the executor since the last
-     * control loop update.
+     * @returns the aggregate statistics for the executor since the last control loop update.
      */
     public Stats getStats() {
         return new Stats
@@ -248,20 +265,26 @@ public class Executor extends AbstractExecutorService {
             throw new NullPointerException();
         }
 
-        final long enqueue = System.nanoTime();
-        final Runnable r = runnable;
-        runnable = new Runnable() {
-                public void run() {
-                    long start = System.nanoTime();
-                    _queueLatencies.get().sample(start - enqueue);
-                    try {
-                        r.run();
-                    } finally {
-                        long end = System.nanoTime();
-                        _taskLatencies.get().sample(end - enqueue);
+        if (_measureTaskLatency || _measureQueueLatency) {
+            final long enqueue = System.nanoTime();
+            final Runnable r = runnable;
+            runnable = new Runnable() {
+                    public void run() {
+
+                        if (_measureQueueLatency) {
+                            _queueLatencies.get().sample(System.nanoTime() - enqueue);
+                        }
+
+                        try {
+                            r.run();
+                        } finally {
+                            if (_measureTaskLatency) {
+                                _taskLatencies.get().sample(System.nanoTime() - enqueue);
+                            }
+                        }
                     }
-                }
-            };
+                };
+        }
 
         if (!_queue.offer(runnable) || _workers.isEmpty()) {
             if (_controller.shouldIncrement(_workerCount.get())) {
