@@ -21,12 +21,21 @@
       (.await latch))))
 
 (defn stress-executor [ex n m interval]
-  (try
+  (is
     (->> (range n)
       (map (fn [_] (future (run-producer ex m interval))))
       doall
-      (map deref)
-      doall)
-    (.getStats ex)
-    (finally
-      (.shutdown ex))))
+      (map #(deref % 3e5 ::timeout))
+      doall
+      (remove nil?)
+      empty?))
+  (.getStats ex))
+
+(deftest test-executor
+  (let [ex (Executors/utilization 0.9 64)]
+    (try
+      (is (< 30 (.getWorkerCount (stress-executor ex 32 1e6 0)) 40))
+      (is (< 2 (.getWorkerCount (stress-executor ex 4 1e6 0)) 8))
+      (is (< 15 (.getWorkerCount (stress-executor ex 16 1e6 0)) 20))
+      (finally
+        (.shutdown ex)))))
