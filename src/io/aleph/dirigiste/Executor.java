@@ -8,45 +8,6 @@ import java.util.EnumSet;
 
 public class Executor extends AbstractExecutorService {
 
-    public enum Metrics {
-        QUEUE_LENGTH,
-        QUEUE_LATENCY,
-        TASK_LATENCY,
-        TASK_RATE,
-        UTILIZATION
-    }
-
-
-
-    private final ThreadFactory _threadFactory;
-    private final BlockingQueue _queue;
-    private final CopyOnWriteArrayList<Worker> _workers = new CopyOnWriteArrayList<Worker>();
-    private final AtomicInteger _workerCount = new AtomicInteger(0);
-    private final Controller _controller;
-
-    private final EnumSet _metrics;
-    private final boolean _measureQueueLatency;
-    private final boolean _measureTaskLatency;
-
-    private boolean _isShutdown = false;
-
-    private final AtomicReference<Stats.UniformLongReservoir> _queueLatencies =
-        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
-
-    private final AtomicReference<Stats.UniformLongReservoir> _taskLatencies =
-        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
-
-    private final AtomicReference<Stats.UniformLongReservoir> _queueLengths =
-        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
-
-    private final AtomicReference<Stats.UniformDoubleReservoir> _utilizations =
-        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
-
-    private final AtomicReference<Stats.UniformDoubleReservoir> _taskRates =
-        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
-
-    private volatile Stats _stats = Stats.EMPTY;
-
     class Worker {
         public volatile Runnable _runnable;
         public volatile boolean _isShutdown = false;
@@ -57,7 +18,7 @@ public class Executor extends AbstractExecutorService {
 
         Worker() {
 
-            final boolean taskRate = _metrics.contains(Metrics.TASK_RATE);
+            final boolean taskCompletionRate = _metrics.contains(Metric.TASK_COMPLETION_RATE);
 
             Runnable runnable =
                 new Runnable() {
@@ -75,7 +36,7 @@ public class Executor extends AbstractExecutorService {
 
                                     } finally {
                                         _runnable = null;
-                                        if (taskRate) {
+                                        if (taskCompletionRate) {
                                             _completed.incrementAndGet();
                                         }
                                     }
@@ -91,7 +52,6 @@ public class Executor extends AbstractExecutorService {
 
             _thread = _threadFactory.newThread(runnable);
             _thread.start();
-            _workerCount.incrementAndGet();
         }
 
         public boolean isActive() {
@@ -101,28 +61,73 @@ public class Executor extends AbstractExecutorService {
         public boolean shutdown() {
             if (!_isShutdown) {
                 _isShutdown = true;
-                _workerCount.decrementAndGet();
+                _numWorkers.decrementAndGet();
                 return true;
             }
             return false;
         }
     }
 
+    public enum Metric {
+        QUEUE_LENGTH,
+        QUEUE_LATENCY,
+        TASK_LATENCY,
+        TASK_ARRIVAL_RATE,
+        TASK_COMPLETION_RATE,
+        UTILIZATION
+    }
+
     private static AtomicInteger _numExecutors = new AtomicInteger(0);
+
+    private final ThreadFactory _threadFactory;
+    private final BlockingQueue _queue;
+    private final CopyOnWriteArrayList<Worker> _workers = new CopyOnWriteArrayList<Worker>();
+    private final AtomicInteger _numWorkers = new AtomicInteger(0);
+    private final AtomicInteger _incomingTasks = new AtomicInteger(0);
+    private final Controller _controller;
+
+    private final EnumSet _metrics;
+    private final boolean _measureQueueLatency;
+    private final boolean _measureTaskLatency;
+    private final boolean _measureTaskArrivalRate;
+
+    private boolean _isShutdown = false;
+
+    private final AtomicReference<Stats.UniformLongReservoir> _queueLatencies =
+        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
+
+    private final AtomicReference<Stats.UniformLongReservoir> _taskLatencies =
+        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
+
+    private final AtomicReference<Stats.UniformLongReservoir> _queueLengths =
+        new AtomicReference<Stats.UniformLongReservoir>(new Stats.UniformLongReservoir());
+
+    private final AtomicReference<Stats.UniformDoubleReservoir> _utilizations =
+        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
+
+    private final AtomicReference<Stats.UniformDoubleReservoir> _taskArrivalRates =
+        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
+
+    private final AtomicReference<Stats.UniformDoubleReservoir> _taskCompletionRates =
+        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
+
+    private volatile Stats _stats = Stats.EMPTY;
 
     /**
      * @param threadFactory the ThreadFactory used by the executor
      * @param queue the queue that holds Runnable objects waiting to be executed
      * @param controller the Controller object that
      */
-    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Controller controller, EnumSet<Metrics> metrics, long samplePeriod, long controlPeriod, TimeUnit unit) {
+    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Controller controller, EnumSet<Metric> metrics, long samplePeriod, long controlPeriod, TimeUnit unit) {
 
         _threadFactory = threadFactory;
         _queue = queue;
         _controller = controller;
         _metrics = metrics;
-        _measureQueueLatency = _metrics.contains(Metrics.QUEUE_LATENCY);
-        _measureTaskLatency = _metrics.contains(Metrics.TASK_LATENCY);
+
+        _measureQueueLatency = _metrics.contains(Metric.QUEUE_LATENCY);
+        _measureTaskLatency = _metrics.contains(Metric.TASK_LATENCY);
+        _measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
 
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
@@ -133,113 +138,36 @@ public class Executor extends AbstractExecutorService {
                 }
             },
             "dirigiste-controller-" + _numExecutors.getAndIncrement()).start();
-    }
 
-    private void startControlLoop(int duration, int iterations) {
-
-        boolean measureUtilization = _metrics.contains(Metrics.UTILIZATION);
-        boolean measureTaskRate = _metrics.contains(Metrics.TASK_RATE);
-        boolean measureQueueLength = _metrics.contains(Metrics.QUEUE_LENGTH);
-
-        double samplesPerSecond = 1000.0 / duration;
-        int iteration = 0;
-
-        try {
-            while (!_isShutdown) {
-                iteration = (iteration + 1) % iterations;
-
-                long start = System.currentTimeMillis();
-
-                // gather stats
-                if (measureQueueLength) {
-                    _queueLengths.get().sample(_queue.size());
-                }
-
-                int active = 0;
-                int cnt = _workers.size();
-                int tasks = 0;
-                for (Worker w : _workers) {
-                    if (w.isActive()) {
-                        active++;
-                    }
-                    tasks += w._completed.getAndSet(0);
-                }
-
-                if (measureUtilization) {
-                    _utilizations.get().sample((double) active / cnt);
-                }
-
-                if (measureTaskRate) {
-                    _taskRates.get().sample(tasks * samplesPerSecond);
-                }
-
-                // update worker count
-                if (iteration == 0) {
-                    _stats = updateStats();
-                    int adjustment = _controller.adjustment(_stats);
-
-                    synchronized (this) {
-                        if (_isShutdown) {
-                            break;
-                        }
-
-                        if (adjustment < 0) {
-
-                            adjustment = -adjustment;
-                            for (Worker w : _workers) {
-                                if (adjustment == 0) break;
-                                if (w.shutdown()) {
-                                    adjustment--;
-                                }
-                            }
-                        } else if (adjustment > 0) {
-
-                            // create new workers
-                            for (int i = 0; i < adjustment; i++) {
-                                if (!_controller.shouldIncrement(_workerCount.get())) {
-                                    break;
-                                }
-                                _workers.add(new Worker());
-                            }
-                        }
-                    }
-                }
-
-                Thread.sleep(Math.max(0, duration - (System.currentTimeMillis() - start)));
-            }
-        } catch (InterruptedException e) {
-
-        }
+        startWorker();
     }
 
     /**
-     * @returns the last aggregate statistics given to the control loop.
+     * @return the metrics being gathered by the executor
+     */
+    public EnumSet<Metric> getMetric() {
+        return _metrics;
+    }
+
+    /**
+     * @return the last aggregate statistics given to the control loop.
      */
     public Stats getLastStats() {
         return _stats;
     }
 
     /**
-     * @returns the aggregate statistics for the executor since the last control loop update.
+     * @return the aggregate statistics for the executor since the last control loop update.
      */
     public Stats getStats() {
         return new Stats
-            (_workerCount.get(),
+            (_numWorkers.get(),
              _utilizations.get().toArray(),
-             _taskRates.get().toArray(),
+             _taskArrivalRates.get().toArray(),
+             _taskCompletionRates.get().toArray(),
              _queueLengths.get().toArray(),
              _queueLatencies.get().toArray(),
              _taskLatencies.get().toArray());
-    }
-
-    private Stats updateStats() {
-        return new Stats
-            (_workerCount.get(),
-             _utilizations.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
-             _taskRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
-             _queueLengths.getAndSet(new Stats.UniformLongReservoir()).toArray(),
-             _queueLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray(),
-             _taskLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray());
     }
 
     @Override
@@ -265,6 +193,8 @@ public class Executor extends AbstractExecutorService {
             throw new NullPointerException();
         }
 
+        _incomingTasks.incrementAndGet();
+
         if (_measureTaskLatency || _measureQueueLatency) {
             final long enqueue = System.nanoTime();
             final Runnable r = runnable;
@@ -287,8 +217,7 @@ public class Executor extends AbstractExecutorService {
         }
 
         if (!_queue.offer(runnable) || _workers.isEmpty()) {
-            if (_controller.shouldIncrement(_workerCount.get())) {
-                _workers.add(new Worker());
+            if (startWorker()) {
                 try {
                     _queue.put(runnable);
                 } catch (InterruptedException e) {
@@ -334,5 +263,116 @@ public class Executor extends AbstractExecutorService {
             }
         }
         return rs;
+    }
+
+    ///
+
+    private Stats updateStats() {
+        return new Stats
+            (_numWorkers.get(),
+             _utilizations.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
+             _taskArrivalRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
+             _taskCompletionRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
+             _queueLengths.getAndSet(new Stats.UniformLongReservoir()).toArray(),
+             _queueLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray(),
+             _taskLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray());
+    }
+
+    private boolean startWorker() {
+        while (true) {
+            int numWorkers = _numWorkers.get();
+            if (!_controller.shouldIncrement(numWorkers)) {
+                return false;
+            }
+            if (_numWorkers.compareAndSet(numWorkers, numWorkers+1)) {
+                _workers.add(new Worker());
+                return true;
+            }
+        }
+    }
+
+    private void startControlLoop(int duration, int iterations) {
+
+        boolean measureUtilization = _metrics.contains(Metric.UTILIZATION);
+        boolean measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
+        boolean measureTaskCompletionRate = _metrics.contains(Metric.TASK_COMPLETION_RATE);
+        boolean measureQueueLength = _metrics.contains(Metric.QUEUE_LENGTH);
+
+        double samplesPerSecond = 1000.0 / duration;
+        int iteration = 0;
+
+        try {
+            while (!_isShutdown) {
+                iteration = (iteration + 1) % iterations;
+
+                long start = System.currentTimeMillis();
+
+                // gather stats
+                if (measureQueueLength) {
+                    _queueLengths.get().sample(_queue.size());
+                }
+
+                if (measureTaskArrivalRate) {
+                    _taskArrivalRates.get().sample(_incomingTasks.getAndSet(0) * samplesPerSecond);
+                }
+
+                int active = 0;
+                int cnt = _workers.size();
+                int tasks = 0;
+                for (Worker w : _workers) {
+                    if (w.isActive()) {
+                        active++;
+                    }
+                    if (measureTaskCompletionRate) {
+                        tasks += w._completed.getAndSet(0);
+                    }
+                }
+
+                if (measureUtilization) {
+                    _utilizations.get().sample((double) active / cnt);
+                }
+
+                if (measureTaskCompletionRate) {
+                    _taskCompletionRates.get().sample(tasks * samplesPerSecond);
+                }
+
+                // update worker count
+                if (iteration == 0) {
+                    _stats = updateStats();
+                    int adjustment = _controller.adjustment(_stats);
+
+                    synchronized (this) {
+                        if (_isShutdown) {
+                            break;
+                        }
+
+                        if (adjustment < 0) {
+
+                            // never let the number of workers drop below 1
+                            adjustment = Math.min(-adjustment, _numWorkers.get()-1);
+
+                            for (Worker w : _workers) {
+                                if (adjustment == 0) break;
+                                if (w.shutdown()) {
+                                    adjustment--;
+                                }
+                            }
+                        } else if (adjustment > 0) {
+
+                            // create new workers
+                            for (int i = 0; i < adjustment; i++) {
+                                if (!startWorker()) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Thread.sleep(Math.max(0, duration - (System.currentTimeMillis() - start)));
+            }
+        } catch (InterruptedException e) {
+
+        }
     }
 }

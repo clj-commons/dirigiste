@@ -9,8 +9,8 @@ public class Controllers {
             }
 
             public int adjustment(Stats stats) {
-                double utilization = stats.getUtilization(0.9) / targetUtilization;
-                return (int) (stats.getWorkerCount() * utilization) - stats.getWorkerCount();
+                double correction = stats.getUtilization(0.9) / targetUtilization;
+                return (int) Math.ceil(stats.getNumWorkers() * correction) - stats.getNumWorkers();
             }
         };
     }

@@ -12,7 +12,7 @@ public class Executors {
      * @param maxThreadCount  the maximum number of threads
      */
     public static Executor utilization(double targetUtilization, int maxThreadCount) {
-        return utilization(targetUtilization, maxThreadCount, EnumSet.of(Executor.Metrics.UTILIZATION));
+        return utilization(targetUtilization, maxThreadCount, EnumSet.of(Executor.Metric.UTILIZATION));
     }
 
     /**
@@ -20,7 +20,7 @@ public class Executors {
      * @param maxThreadCount  the maximum number of threads
      * @param metrics  the metrics which should be gathered
      */
-    public static Executor utilization(double targetUtilization, int maxThreadCount, EnumSet<Executor.Metrics> metrics) {
+    public static Executor utilization(double targetUtilization, int maxThreadCount, EnumSet<Executor.Metric> metrics) {
         return new Executor(defaultThreadFactory, new SynchronousQueue(), Controllers.utilization(targetUtilization, maxThreadCount), metrics, 25, 10000, TimeUnit.MILLISECONDS);
     }
 

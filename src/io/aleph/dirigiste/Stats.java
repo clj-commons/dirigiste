@@ -84,19 +84,21 @@ public class Stats {
         }
     }
 
-    private final int _workerCount;
+    private final int _numWorkers;
     private final double[] _utilizations;
-    private final double[] _taskRates;
+    private final double[] _taskArrivalRates;
+    private final double[] _taskCompletionRates;
     private final long[] _queueLengths;
     private final long[] _queueLatencies;
     private final long[] _taskLatencies;
 
-    public static Stats EMPTY = new Stats(0, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
+    public static Stats EMPTY = new Stats(0, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
 
-    public Stats(int workerCount, double[] utilizations, double[] taskRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
-        _workerCount = workerCount;
+    public Stats(int numWorkers, double[] utilizations, double[] taskArrivalRates, double [] taskCompletionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
+        _numWorkers = numWorkers;
         _utilizations = utilizations;
-        _taskRates = taskRates;
+        _taskArrivalRates = taskArrivalRates;
+        _taskCompletionRates = taskCompletionRates;
         _queueLengths = queueLengths;
         _queueLatencies = queueLatencies;
         _taskLatencies = taskLatencies;
@@ -179,8 +181,8 @@ public class Stats {
     /**
      * @return the number of active workers in the pool.
      */
-    public int getWorkerCount() {
-        return _workerCount;
+    public int getNumWorkers() {
+        return _numWorkers;
     }
 
     /**
@@ -199,18 +201,33 @@ public class Stats {
     }
 
     /**
+     * @return the mean task arrival rate of the executor, in tasks per second
+     */
+    public double getMeanTaskArrivalRate() {
+        return mean(_taskArrivalRates);
+    }
+
+    /**
+     * @param quantile  the point within the distribution to look up, 0.5 returns the median, 0.9 the 90th percentile
+     * @return the task arrival rate of the executor, in tasks per second
+     */
+    public double getTaskArrivalRate(double quantile) {
+        return lerp(_taskArrivalRates, quantile);
+    }
+
+    /**
      * @return the mean task completion rate of the executor, in tasks per second
      */
-    public double getMeanTaskRate() {
-        return mean(_taskRates);
+    public double getMeanTaskCompletionRate() {
+        return mean(_taskCompletionRates);
     }
 
     /**
      * @param quantile  the point within the distribution to look up, 0.5 returns the median, 0.9 the 90th percentile
      * @return the task completion rate of the executor, in tasks per second
      */
-    public double getTaskRate(double quantile) {
-        return lerp(_taskRates, quantile);
+    public double getTaskCompletionRate(double quantile) {
+        return lerp(_taskCompletionRates, quantile);
     }
 
     /**

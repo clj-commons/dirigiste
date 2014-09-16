@@ -34,8 +34,10 @@
 (deftest test-executor
   (let [ex (Executors/utilization 0.9 64)]
     (try
-      (is (< 30 (.getWorkerCount (stress-executor ex 32 1e6 0)) 40))
-      (is (< 2 (.getWorkerCount (stress-executor ex 4 1e6 0)) 8))
-      (is (< 15 (.getWorkerCount (stress-executor ex 16 1e6 0)) 20))
+      (is (< 30 (.getNumWorkers (stress-executor ex 32 1e6 0)) 40))
+      (is (< 2 (.getNumWorkers (stress-executor ex 4 1e6 0)) 8))
+      (is (< 15 (.getNumWorkers (stress-executor ex 16 1e6 0)) 20))
+      (Thread/sleep (* 1000 21))
+      (is (= 1 (-> ex .getStats .getNumWorkers)))
       (finally
         (.shutdown ex)))))
