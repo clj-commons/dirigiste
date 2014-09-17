@@ -75,18 +75,18 @@ The second method, `adjustment`, takes a `Stats` object, and returns a number re
 The utilization controller is quite simple:
 
 ```java
-public static Controller utilization(final double targetUtilization, final int maxThreadCount) {
-        return new Controller() {
-            public boolean shouldIncrement(int numWorkers) {
-                return numWorkers < maxThreadCount;
-            }
-
-            public int adjustment(Stats stats) {
-                double correction = stats.getUtilization(0.9) / targetUtilization;
-                return (int) Math.ceil(stats.getNumWorkers() * correction) - stats.getNumWorkers();
-            }
-        };
+Controller utilization(final double targetUtilization, final int maxThreadCount) {
+  return new Controller() {
+    public boolean shouldIncrement(int numWorkers) {
+      return numWorkers < maxThreadCount;
     }
+
+    public int adjustment(Stats stats) {
+      double correction = stats.getUtilization(0.9) / targetUtilization;
+      return (int) Math.ceil(stats.getNumWorkers() * correction) - stats.getNumWorkers();
+    }
+  };
+}
 ```
 
 It adjusts the number of threads using the `targetUtilization` compared against the 90th percentile measured utilization over the last `controlPeriod`.  Obviously more sophisticated methods are possible, but they're left as an exercise for the reader.
