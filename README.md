@@ -24,7 +24,7 @@ In Maven:
 
 ### the basics
 
-Using the default utilization executor is simple:
+Using the default utilization executor is simple, via [`Executors.utilization(...)`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executors.html#utilization\(double,%20int\)):
 
 ```java
 import io.aleph.dirigiste.Executors;
@@ -34,7 +34,7 @@ import io.aleph.dirigiste.Executors;
 ExecutorService e = Executors.utilization(0.9, 64);
 ```
 
-[This](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executors.html#utilization\(double,%20int\)) will create an executor which will try to size the pool such that 90% of the threads are active, but will not grow beyond 64 threads.
+This will create an executor which will try to size the pool such that 90% of the threads are active, but will not grow beyond 64 threads.
 
 This executor exposes [`getStats`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executor.html#getStats\(\)) and [`getLastStats`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executor.html#getLastStats\(\)) methods, which can be used to examine the performance characteristics of the executor.  `getLastStats` uses the last value passed to the control loop, so can return immediately.  `getStats` returns the statistics gathered since the last control update, and so may contain 0 or more samples, and requires some amount of computation.
 
