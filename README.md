@@ -1,4 +1,4 @@
-![](docs/garden_city.jpg)
+![](docs/cybersyn.jpg)
 
 (pronounced deer-eh-jeest)
 
