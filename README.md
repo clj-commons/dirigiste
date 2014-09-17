@@ -26,7 +26,7 @@ In Maven:
 Using the default utilization executor is simple:
 
 ```java
-import io.aleph.Executors;
+import io.aleph.dirigiste.Executors;
 
 ...
 
