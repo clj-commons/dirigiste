@@ -13,7 +13,7 @@ public class Stats {
         }
     };
 
-    public static class UniformLongReservoir {
+    static class UniformLongReservoir {
 
         private final AtomicInteger _count = new AtomicInteger();
         private final AtomicLongArray _values = new AtomicLongArray(1024);
@@ -46,7 +46,7 @@ public class Stats {
         }
     }
 
-    public static class UniformDoubleReservoir {
+    static class UniformDoubleReservoir {
         private static ThreadLocal<Random> _randoms = new ThreadLocal<Random>() {
             protected Random initialValue() {
                 return new Random();
@@ -88,17 +88,19 @@ public class Stats {
     private final double[] _utilizations;
     private final double[] _taskArrivalRates;
     private final double[] _taskCompletionRates;
+    private final double[] _taskRejectionRates;
     private final long[] _queueLengths;
     private final long[] _queueLatencies;
     private final long[] _taskLatencies;
 
-    public static Stats EMPTY = new Stats(0, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
+    public static Stats EMPTY = new Stats(0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
 
-    public Stats(int numWorkers, double[] utilizations, double[] taskArrivalRates, double [] taskCompletionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
+    public Stats(int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
         _numWorkers = numWorkers;
         _utilizations = utilizations;
         _taskArrivalRates = taskArrivalRates;
         _taskCompletionRates = taskCompletionRates;
+        _taskRejectionRates = taskRejectionRates;
         _queueLengths = queueLengths;
         _queueLatencies = queueLatencies;
         _taskLatencies = taskLatencies;
@@ -228,6 +230,21 @@ public class Stats {
      */
     public double getTaskCompletionRate(double quantile) {
         return lerp(_taskCompletionRates, quantile);
+    }
+
+    /**
+     * @return the mean task rejection rate of the executor, in tasks per second
+     */
+    public double getMeanTaskRejectionRate() {
+        return mean(_taskRejectionRates);
+    }
+
+    /**
+     * @param quantile  the point within the distribution to look up, 0.5 returns the median, 0.9 the 90th percentile
+     * @return the task rejection rate of the executor, in tasks per second
+     */
+    public double getTaskRejectionRate(double quantile) {
+        return lerp(_taskRejectionRates, quantile);
     }
 
     /**

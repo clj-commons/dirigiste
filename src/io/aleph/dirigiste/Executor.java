@@ -74,6 +74,7 @@ public class Executor extends AbstractExecutorService {
         TASK_LATENCY,
         TASK_ARRIVAL_RATE,
         TASK_COMPLETION_RATE,
+        TASK_REJECTION_RATE,
         UTILIZATION
     }
 
@@ -84,12 +85,14 @@ public class Executor extends AbstractExecutorService {
     private final CopyOnWriteArrayList<Worker> _workers = new CopyOnWriteArrayList<Worker>();
     private final AtomicInteger _numWorkers = new AtomicInteger(0);
     private final AtomicInteger _incomingTasks = new AtomicInteger(0);
+    private final AtomicInteger _rejectedTasks = new AtomicInteger(0);
     private final Controller _controller;
 
     private final EnumSet _metrics;
     private final boolean _measureQueueLatency;
     private final boolean _measureTaskLatency;
     private final boolean _measureTaskArrivalRate;
+    private final boolean _measureTaskRejectionRate;
 
     private boolean _isShutdown = false;
 
@@ -111,6 +114,9 @@ public class Executor extends AbstractExecutorService {
     private final AtomicReference<Stats.UniformDoubleReservoir> _taskCompletionRates =
         new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
 
+    private final AtomicReference<Stats.UniformDoubleReservoir> _taskRejectionRates =
+        new AtomicReference<Stats.UniformDoubleReservoir>(new Stats.UniformDoubleReservoir());
+
     private volatile Stats _stats = Stats.EMPTY;
 
     /**
@@ -128,6 +134,7 @@ public class Executor extends AbstractExecutorService {
         _measureQueueLatency = _metrics.contains(Metric.QUEUE_LATENCY);
         _measureTaskLatency = _metrics.contains(Metric.TASK_LATENCY);
         _measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
+        _measureTaskRejectionRate = _metrics.contains(Metric.TASK_REJECTION_RATE);
 
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
@@ -165,6 +172,7 @@ public class Executor extends AbstractExecutorService {
              _utilizations.get().toArray(),
              _taskArrivalRates.get().toArray(),
              _taskCompletionRates.get().toArray(),
+             _taskRejectionRates.get().toArray(),
              _queueLengths.get().toArray(),
              _queueLatencies.get().toArray(),
              _taskLatencies.get().toArray());
@@ -187,13 +195,55 @@ public class Executor extends AbstractExecutorService {
         return true;
     }
 
+    /**
+     * A version of execute which will simply block until the task is accepted, rather than
+     * throwing a RejectedExceptionException.
+     */
+    public void executeWithoutRejection(Runnable runnable) throws NullPointerException, InterruptedException {
+         if (runnable == null) {
+            throw new NullPointerException();
+        }
+
+         if (_measureTaskArrivalRate) {
+             _incomingTasks.incrementAndGet();
+         }
+
+        if (_measureTaskLatency || _measureQueueLatency) {
+            final long enqueue = System.nanoTime();
+            final Runnable r = runnable;
+            runnable = new Runnable() {
+                    public void run() {
+
+                        if (_measureQueueLatency) {
+                            _queueLatencies.get().sample(System.nanoTime() - enqueue);
+                        }
+
+                        try {
+                            r.run();
+                        } finally {
+                            if (_measureTaskLatency) {
+                                _taskLatencies.get().sample(System.nanoTime() - enqueue);
+                            }
+                        }
+                    }
+                };
+        }
+
+        if (!_queue.offer(runnable) || _workers.isEmpty()) {
+            startWorker();
+            _queue.put(runnable);
+        }
+    }
+
     @Override
     public void execute(Runnable runnable) throws NullPointerException, RejectedExecutionException {
         if (runnable == null) {
             throw new NullPointerException();
         }
 
-        _incomingTasks.incrementAndGet();
+        if (_measureTaskArrivalRate) {
+            _incomingTasks.incrementAndGet();
+        }
 
         if (_measureTaskLatency || _measureQueueLatency) {
             final long enqueue = System.nanoTime();
@@ -221,9 +271,15 @@ public class Executor extends AbstractExecutorService {
                 try {
                     _queue.put(runnable);
                 } catch (InterruptedException e) {
+                    if (_measureTaskRejectionRate) {
+                        _rejectedTasks.incrementAndGet();
+                    }
                     throw new RejectedExecutionException();
                 }
             } else {
+                if (_measureTaskRejectionRate) {
+                    _rejectedTasks.incrementAndGet();
+                }
                 throw new RejectedExecutionException();
             }
         }
@@ -273,6 +329,7 @@ public class Executor extends AbstractExecutorService {
              _utilizations.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
              _taskArrivalRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
              _taskCompletionRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
+             _taskRejectionRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
              _queueLengths.getAndSet(new Stats.UniformLongReservoir()).toArray(),
              _queueLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray(),
              _taskLatencies.getAndSet(new Stats.UniformLongReservoir()).toArray());
@@ -296,6 +353,7 @@ public class Executor extends AbstractExecutorService {
         boolean measureUtilization = _metrics.contains(Metric.UTILIZATION);
         boolean measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
         boolean measureTaskCompletionRate = _metrics.contains(Metric.TASK_COMPLETION_RATE);
+        boolean measureTaskRejectionRate = _metrics.contains(Metric.TASK_REJECTION_RATE);
         boolean measureQueueLength = _metrics.contains(Metric.QUEUE_LENGTH);
 
         double samplesPerSecond = 1000.0 / duration;
@@ -314,6 +372,10 @@ public class Executor extends AbstractExecutorService {
 
                 if (measureTaskArrivalRate) {
                     _taskArrivalRates.get().sample(_incomingTasks.getAndSet(0) * samplesPerSecond);
+                }
+
+                if (measureTaskRejectionRate) {
+                    _taskRejectionRates.get().sample(_rejectedTasks.getAndSet(0) * samplesPerSecond);
                 }
 
                 int active = 0;
