@@ -18,8 +18,12 @@ In Leiningen:
 
 In Maven:
 
-```
-<something here soon>
+```xml
+<dependency>
+  <groupId>io.aleph</groupId>
+  <artifactId>dirigiste</artifactId>
+  <version>0.1.0-alpha1</version>
+</dependency>
 ```
 
 ### the basics
