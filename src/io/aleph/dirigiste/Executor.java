@@ -152,7 +152,7 @@ public class Executor extends AbstractExecutorService {
     /**
      * @return the metrics being gathered by the executor
      */
-    public EnumSet<Metric> getMetric() {
+    public EnumSet<Metric> getMetrics() {
         return _metrics;
     }
 
@@ -168,7 +168,8 @@ public class Executor extends AbstractExecutorService {
      */
     public Stats getStats() {
         return new Stats
-            (_numWorkers.get(),
+            (_metrics,
+             _numWorkers.get(),
              _utilizations.get().toArray(),
              _taskArrivalRates.get().toArray(),
              _taskCompletionRates.get().toArray(),
@@ -325,7 +326,8 @@ public class Executor extends AbstractExecutorService {
 
     private Stats updateStats() {
         return new Stats
-            (_numWorkers.get(),
+            (_metrics,
+             _numWorkers.get(),
              _utilizations.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
              _taskArrivalRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),
              _taskCompletionRates.getAndSet(new Stats.UniformDoubleReservoir()).toArray(),

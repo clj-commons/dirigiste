@@ -10,7 +10,7 @@
     [io.aleph.dirigiste
      Executors
      Executor
-     Executor$Metrics
+     Executor$Metric
      Stats]))
 
 (defn run-producer [^java.util.concurrent.Executor ex n interval]
@@ -32,7 +32,7 @@
   (.getStats ex))
 
 (deftest test-executor
-  (let [ex (Executors/utilization 0.9 64 (EnumSet/allOf Executor$Metrics))]
+  (let [ex (Executors/utilization 0.9 64 (EnumSet/allOf Executor$Metric))]
     (try
       (is (< 30 (.getNumWorkers (stress-executor ex 32 1e6 0)) 40))
       (is (< 2 (.getNumWorkers (stress-executor ex 4 1e6 0)) 8))

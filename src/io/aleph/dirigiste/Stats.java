@@ -4,6 +4,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.Random;
 import java.util.Arrays;
+import java.util.EnumSet;
 
 public class Stats {
 
@@ -84,6 +85,7 @@ public class Stats {
         }
     }
 
+    private final EnumSet<Executor.Metric> _metrics;
     private final int _numWorkers;
     private final double[] _utilizations;
     private final double[] _taskArrivalRates;
@@ -93,9 +95,10 @@ public class Stats {
     private final long[] _queueLatencies;
     private final long[] _taskLatencies;
 
-    public static Stats EMPTY = new Stats(0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
+    public static Stats EMPTY = new Stats(EnumSet.noneOf(Executor.Metric.class), 0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
 
-    public Stats(int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
+    public Stats(EnumSet<Executor.Metric> metrics, int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
+        _metrics = metrics;
         _numWorkers = numWorkers;
         _utilizations = utilizations;
         _taskArrivalRates = taskArrivalRates;
@@ -179,6 +182,13 @@ public class Stats {
     }
 
     ///
+
+    /**
+     * @return the provided metrics
+     */
+    public EnumSet<Executor.Metric> getMetrics() {
+        return _metrics;
+    }
 
     /**
      * @return the number of active workers in the pool.
