@@ -35,9 +35,9 @@
   (let [ex (Executors/utilization 0.9 64 (EnumSet/allOf Executor$Metric))]
     (try
       (is (< 30 (.getNumWorkers (stress-executor ex 32 1e6 0)) 40))
-      (is (< 2 (.getNumWorkers (stress-executor ex 4 1e6 0)) 8))
+      (is (< 2 (.getNumWorkers (stress-executor ex 4 5e6 0)) 8))
       (is (< 15 (.getNumWorkers (stress-executor ex 16 1e6 0)) 20))
-      (Thread/sleep (* 1000 21))
+      (Thread/sleep (* 1000 91))
       (is (= 1 (-> ex .getStats .getNumWorkers)))
       (finally
         (.shutdown ex)))))

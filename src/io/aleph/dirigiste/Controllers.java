@@ -9,8 +9,17 @@ public class Controllers {
             }
 
             public int adjustment(Stats stats) {
+                int numWorkers = stats.getNumWorkers();
                 double correction = stats.getUtilization(0.9) / targetUtilization;
-                return (int) Math.ceil(stats.getNumWorkers() * correction) - stats.getNumWorkers();
+                int n = (int) Math.ceil(stats.getNumWorkers() * correction) - numWorkers;
+
+                if (n < 0) {
+                    return Math.max(n, (int) -Math.ceil(numWorkers/4.0));
+                } else if (n > 0) {
+                    return Math.min(n, (int) Math.ceil(numWorkers/4.0));
+                } else {
+                    return 0;
+                }
             }
         };
     }
