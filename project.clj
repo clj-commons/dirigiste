@@ -8,4 +8,7 @@
   :license {:name "MIT License"}
   :dependencies []
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]}}
+  :pom-addition [:developers [:developer {:id "ztellman"}
+                              [:name "Zach Tellman"]
+                              [:url "http://ideolalia.com"]]]
   :java-source-paths ["src"])
