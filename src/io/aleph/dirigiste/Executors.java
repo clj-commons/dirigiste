@@ -56,7 +56,7 @@ public class Executors {
 
     /**
      * @param targetUtilization  the target level of utilization, within [0, 1]
-     * @param
+     * @param maxThreadCount  the maximum number of threads that can be allocated
      */
      public static Executor.Controller utilizationController(final double targetUtilization, final int maxThreadCount) {
         return new Executor.Controller() {
