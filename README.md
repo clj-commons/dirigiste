@@ -108,8 +108,6 @@ pool.acquire("foo",
 
 ### creating a custom controller
 
-### creating a executor controller
-
 The [`Executor.Controller`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executor.Controller.html) interface is fairly straightforward:
 
 ```java
@@ -142,7 +140,7 @@ Executor.Controller utilizationController(final double targetUtilization, final 
 
 It adjusts the number of threads using the `targetUtilization` compared against the 90th percentile measured utilization over the last `controlPeriod`.  Obviously more sophisticated methods are possible, but they're left as an exercise for the reader.
 
-Controllers for object pools work much the same, except that `adjustment` takes a `Map` of keys onto `Stats` objects, and returns a `Map` of keys onto `Integer` objects.  The utilization controller is otherwise much the same:
+[`Pool.Controller`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Pool.Controller.html) works much the same, except that `adjustment` takes a `Map` of keys onto `Stats` objects, and returns a `Map` of keys onto `Integer` objects.  The utilization controller is otherwise much the same:
 
 ```java
 public Pool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
