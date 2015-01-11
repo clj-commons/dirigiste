@@ -8,21 +8,76 @@ public class Executors {
     private static ThreadFactory defaultThreadFactory = java.util.concurrent.Executors.defaultThreadFactory();
 
     /**
-     * @param targetUtilization  the target level of utilization, from 0 to 1
-     * @param maxThreadCount  the maximum number of threads
+     * @param numThreads  the number of threads in the thread pool
      */
-    public static Executor utilization(double targetUtilization, int maxThreadCount) {
-        return utilization(targetUtilization, maxThreadCount, EnumSet.of(Executor.Metric.UTILIZATION));
+    public static Executor fixedExecutor(final int numThreads) {
+        return fixedExecutor(numThreads, EnumSet.noneOf(Stats.Metric.class));
     }
 
     /**
-     * @param targetUtilization  the target level of utilization, from 0 to 1
+     * @param numThreads  the number of threads in the thread pool
+     * @param metrics  the metrics that will be gathered by the executor
+     */
+    public static Executor fixedExecutor(final int numThreads, EnumSet<Stats.Metric> metrics) {
+        return new Executor(defaultThreadFactory, new SynchronousQueue(), fixedController(numThreads), numThreads, metrics, 25, 10000, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * @param numThreads  the number of threads in the thread pool
+     */
+    public static Executor.Controller fixedController(final int numThreads) {
+        return new Executor.Controller() {
+            public boolean shouldIncrement(int numWorkers) {
+                return numWorkers < numThreads;
+            }
+
+            public int adjustment(Stats stats) {
+                return stats.getNumWorkers() - numThreads;
+            }
+        };
+    }
+
+    /**
+     * @param targetUtilization  the target level of utilization, within [0, 1]
+     * @param maxThreadCount  the maximum number of threads
+     */
+    public static Executor utilizationExecutor(double targetUtilization, int maxThreadCount) {
+        return utilizationExecutor(targetUtilization, maxThreadCount, EnumSet.of(Stats.Metric.UTILIZATION));
+    }
+
+    /**
+     * @param targetUtilization  the target level of utilization, within [0, 1]
      * @param maxThreadCount  the maximum number of threads
      * @param metrics  the metrics which should be gathered
      */
-    public static Executor utilization(double targetUtilization, int maxThreadCount, EnumSet<Executor.Metric> metrics) {
-        return new Executor(defaultThreadFactory, new SynchronousQueue(), Controllers.utilization(targetUtilization, maxThreadCount), metrics, 25, 10000, TimeUnit.MILLISECONDS);
+    public static Executor utilizationExecutor(double targetUtilization, int maxThreadCount, EnumSet<Stats.Metric> metrics) {
+        return new Executor(defaultThreadFactory, new SynchronousQueue(), utilizationController(targetUtilization, maxThreadCount), 1, metrics, 25, 10000, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * @param targetUtilization  the target level of utilization, within [0, 1]
+     * @param
+     */
+     public static Executor.Controller utilizationController(final double targetUtilization, final int maxThreadCount) {
+        return new Executor.Controller() {
+            public boolean shouldIncrement(int numWorkers) {
+                return numWorkers < maxThreadCount;
+            }
+
+            public int adjustment(Stats stats) {
+                int numWorkers = stats.getNumWorkers();
+                double correction = stats.getUtilization(0.9) / targetUtilization;
+                int n = (int) Math.ceil(stats.getNumWorkers() * correction) - numWorkers;
+
+                if (n < 0) {
+                    return Math.max(n, (int) -Math.ceil(numWorkers/4.0));
+                } else if (n > 0) {
+                    return Math.min(n, (int) Math.ceil(numWorkers/4.0));
+                } else {
+                    return 0;
+                }
+            }
+        };
+    }
 
 }

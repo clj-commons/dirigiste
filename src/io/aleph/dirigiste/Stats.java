@@ -2,11 +2,19 @@ package io.aleph.dirigiste;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
-import java.util.Random;
-import java.util.Arrays;
-import java.util.EnumSet;
+import java.util.*;
 
 public class Stats {
+
+    public enum Metric {
+        QUEUE_LENGTH,
+        QUEUE_LATENCY,
+        TASK_LATENCY,
+        TASK_ARRIVAL_RATE,
+        TASK_COMPLETION_RATE,
+        TASK_REJECTION_RATE,
+        UTILIZATION
+    }
 
     private static ThreadLocal<Random> _randoms = new ThreadLocal<Random>() {
         protected Random initialValue() {
@@ -14,7 +22,7 @@ public class Stats {
         }
     };
 
-    static class UniformLongReservoir {
+    public static class UniformLongReservoir {
 
         private final AtomicInteger _count = new AtomicInteger();
         private final AtomicLongArray _values = new AtomicLongArray(1024);
@@ -47,7 +55,7 @@ public class Stats {
         }
     }
 
-    static class UniformDoubleReservoir {
+    public static class UniformDoubleReservoir {
         private static ThreadLocal<Random> _randoms = new ThreadLocal<Random>() {
             protected Random initialValue() {
                 return new Random();
@@ -85,7 +93,126 @@ public class Stats {
         }
     }
 
-    private final EnumSet<Executor.Metric> _metrics;
+    public static class UniformLongReservoirMap<K> {
+        ConcurrentHashMap<K,UniformLongReservoir> _reservoirs =
+            new ConcurrentHashMap<K,UniformLongReservoir>();
+
+        public void sample(K key, long n) {
+            UniformLongReservoir r = _reservoirs.get(key);
+            if (r == null) {
+                r = new UniformLongReservoir();
+                UniformLongReservoir prior = _reservoirs.putIfAbsent(key, r);
+                r = (prior == null ? r : prior);
+            }
+            r.sample(n);
+        }
+
+        public Map<K,long[]> toMap() {
+            Map<K,long[]> m = new HashMap<K,long[]>();
+            for (K k : _reservoirs.keySet()) {
+                m.put(k, _reservoirs.put(k, new UniformLongReservoir()).toArray());
+            }
+            return m;
+        }
+    }
+
+    public static class UniformDoubleReservoirMap<K> {
+        ConcurrentHashMap<K,UniformDoubleReservoir> _reservoirs =
+            new ConcurrentHashMap<K,UniformDoubleReservoir>();
+
+        public void sample(K key, double n) {
+            UniformDoubleReservoir r = _reservoirs.get(key);
+            if (r == null) {
+                r = new UniformDoubleReservoir();
+                UniformDoubleReservoir prior = _reservoirs.putIfAbsent(key, r);
+                r = (prior == null ? r : prior);
+            }
+            r.sample(n);
+        }
+
+        public Map<K,double[]> toMap() {
+            Map<K,double[]> m = new HashMap<K,double[]>();
+            for (K k : _reservoirs.keySet()) {
+                m.put(k, _reservoirs.remove(k).toArray());
+            }
+            return m;
+        }
+    }
+
+    public static double lerp(long low, long high, double t) {
+        return low + (high - low) * t;
+    }
+
+    public static double lerp(double low, double high, double t) {
+        return low + (high - low) * t;
+    }
+
+    public static double lerp(long[] vals, double t) {
+
+        if (t < 0 || 1 < t) {
+            throw new IllegalArgumentException(new Double(t).toString());
+        }
+
+        int cnt = vals.length;
+
+        switch (cnt) {
+        case 0:
+            return 0.0;
+        case 1:
+            return (double) vals[0];
+        default:
+            if (t == 1.0) {
+                return (double) vals[cnt-1];
+            }
+            double idx = (cnt-1) * t;
+            int iidx = (int) idx;
+            return lerp(vals[iidx], vals[iidx + 1], idx - iidx);
+        }
+    }
+
+    public static double lerp(double[] vals, double t) {
+
+        if (t < 0 || 1 < t) {
+            throw new IllegalArgumentException(new Double(t).toString());
+        }
+
+        int cnt = vals.length;
+
+        switch (cnt) {
+        case 0:
+            return 0.0;
+        case 1:
+            return (double) vals[0];
+        default:
+            if (t == 1.0) {
+                return (double) vals[cnt-1];
+            }
+            double idx = (cnt-1) * t;
+            int iidx = (int) idx;
+            return lerp(vals[iidx], vals[iidx + 1], idx - iidx);
+        }
+    }
+
+    public static double mean(double[] vals) {
+        double sum = 0;
+        for (int i = 0; i < vals.length; i++) {
+            sum += vals[i];
+        }
+        return sum/vals.length;
+    }
+
+    public static double mean(long[] vals) {
+        long sum = 0;
+        for (int i = 0; i < vals.length; i++) {
+            sum += vals[i];
+        }
+        return sum/vals.length;
+    }
+
+    //
+
+    private final EnumSet<Metric> _metrics;
+
     private final int _numWorkers;
     private final double[] _utilizations;
     private final double[] _taskArrivalRates;
@@ -95,9 +222,9 @@ public class Stats {
     private final long[] _queueLatencies;
     private final long[] _taskLatencies;
 
-    public static Stats EMPTY = new Stats(EnumSet.noneOf(Executor.Metric.class), 0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
+    public static Stats EMPTY = new Stats(EnumSet.noneOf(Metric.class), 0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
 
-    public Stats(EnumSet<Executor.Metric> metrics, int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
+    public Stats(EnumSet<Metric> metrics, int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
         _metrics = metrics;
         _numWorkers = numWorkers;
         _utilizations = utilizations;
@@ -109,84 +236,10 @@ public class Stats {
         _taskLatencies = taskLatencies;
     }
 
-    ///
-
-    private static double lerp(long low, long high, double t) {
-        return low + (high - low) * t;
-    }
-
-    private static double lerp(double low, double high, double t) {
-        return low + (high - low) * t;
-    }
-
-    private static double lerp(long[] vals, double t) {
-
-        if (t < 0 || 1 < t) {
-            throw new IllegalArgumentException(new Double(t).toString());
-        }
-
-        int cnt = vals.length;
-
-        switch (cnt) {
-        case 0:
-            return 0.0;
-        case 1:
-            return (double) vals[0];
-        default:
-            if (t == 1.0) {
-                return (double) vals[cnt-1];
-            }
-            double idx = (cnt-1) * t;
-            int iidx = (int) idx;
-            return lerp(vals[iidx], vals[iidx + 1], idx - iidx);
-        }
-    }
-
-    private static double lerp(double[] vals, double t) {
-
-        if (t < 0 || 1 < t) {
-            throw new IllegalArgumentException(new Double(t).toString());
-        }
-
-        int cnt = vals.length;
-
-        switch (cnt) {
-        case 0:
-            return 0.0;
-        case 1:
-            return (double) vals[0];
-        default:
-            if (t == 1.0) {
-                return (double) vals[cnt-1];
-            }
-            double idx = (cnt-1) * t;
-            int iidx = (int) idx;
-            return lerp(vals[iidx], vals[iidx + 1], idx - iidx);
-        }
-    }
-
-    private static double mean(double[] vals) {
-        double sum = 0;
-        for (int i = 0; i < vals.length; i++) {
-            sum += vals[i];
-        }
-        return sum/vals.length;
-    }
-
-    private static double mean(long[] vals) {
-        long sum = 0;
-        for (int i = 0; i < vals.length; i++) {
-            sum += vals[i];
-        }
-        return sum/vals.length;
-    }
-
-    ///
-
     /**
      * @return the provided metrics
      */
-    public EnumSet<Executor.Metric> getMetrics() {
+    public EnumSet<Metric> getMetrics() {
         return _metrics;
     }
 

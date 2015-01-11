@@ -8,6 +8,21 @@ import java.util.EnumSet;
 
 public class Executor extends AbstractExecutorService {
 
+    public interface Controller {
+
+        /**
+         * @param currThreads the current number of active threads
+         * @return whether an additional thread should be spun up, a return value of false may cause a RejectedExecutionException to be thrown elsewhere
+         */
+        boolean shouldIncrement(int currThreads);
+
+        /**
+         * @param stats the statistics gathered since the last call to 'adjustment'
+         * @return if positive, the number of threads that should be spun up, if negative the number of threads that should be spun down
+         */
+        int adjustment(Stats stats);
+    }
+
     class Worker {
         public volatile Runnable _runnable;
         public volatile boolean _isShutdown = false;
@@ -18,7 +33,7 @@ public class Executor extends AbstractExecutorService {
 
         Worker() {
 
-            final boolean taskCompletionRate = _metrics.contains(Metric.TASK_COMPLETION_RATE);
+            final boolean taskCompletionRate = _metrics.contains(Stats.Metric.TASK_COMPLETION_RATE);
 
             Runnable runnable =
                 new Runnable() {
@@ -68,16 +83,6 @@ public class Executor extends AbstractExecutorService {
         }
     }
 
-    public enum Metric {
-        QUEUE_LENGTH,
-        QUEUE_LATENCY,
-        TASK_LATENCY,
-        TASK_ARRIVAL_RATE,
-        TASK_COMPLETION_RATE,
-        TASK_REJECTION_RATE,
-        UTILIZATION
-    }
-
     private static AtomicInteger _numExecutors = new AtomicInteger(0);
 
     private final ThreadFactory _threadFactory;
@@ -121,20 +126,25 @@ public class Executor extends AbstractExecutorService {
 
     /**
      * @param threadFactory the ThreadFactory used by the executor
-     * @param queue the queue that holds Runnable objects waiting to be executed
-     * @param controller the Controller object that
+     * @param queue  the queue that holds Runnable objects waiting to be executed
+     * @param controller  the Controller object that updates the thread count
+     * @param metrics  the metrics that will be collected and delivered to the controller
+     * @param initialThreadCount  the number of threads that the executor will begin with
+     * @param samplePeriod  the period at which the executor's state will be sampled
+     * @param controlPeriod  the period at which the controller will be invoked with the gathered statistics
+     * @param unit  the time unit for the #samplePeriod and #controlPeriod
      */
-    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Controller controller, EnumSet<Metric> metrics, long samplePeriod, long controlPeriod, TimeUnit unit) {
+    public Executor(ThreadFactory threadFactory, BlockingQueue queue, Executor.Controller controller, int initialThreadCount, EnumSet<Stats.Metric> metrics, long samplePeriod, long controlPeriod, TimeUnit unit) {
 
         _threadFactory = threadFactory;
         _queue = queue;
         _controller = controller;
         _metrics = metrics;
 
-        _measureQueueLatency = _metrics.contains(Metric.QUEUE_LATENCY);
-        _measureTaskLatency = _metrics.contains(Metric.TASK_LATENCY);
-        _measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
-        _measureTaskRejectionRate = _metrics.contains(Metric.TASK_REJECTION_RATE);
+        _measureQueueLatency = _metrics.contains(Stats.Metric.QUEUE_LATENCY);
+        _measureTaskLatency = _metrics.contains(Stats.Metric.TASK_LATENCY);
+        _measureTaskArrivalRate = _metrics.contains(Stats.Metric.TASK_ARRIVAL_RATE);
+        _measureTaskRejectionRate = _metrics.contains(Stats.Metric.TASK_REJECTION_RATE);
 
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
@@ -144,15 +154,17 @@ public class Executor extends AbstractExecutorService {
                     startControlLoop(duration, iterations);
                 }
             },
-            "dirigiste-controller-" + _numExecutors.getAndIncrement()).start();
+            "dirigiste-executor-controller-" + _numExecutors.getAndIncrement()).start();
 
-        startWorker();
+        for (int i = 0; i < Math.max(1, initialThreadCount); i++) {
+            startWorker();
+        }
     }
 
     /**
      * @return the metrics being gathered by the executor
      */
-    public EnumSet<Metric> getMetrics() {
+    public EnumSet<Stats.Metric> getMetrics() {
         return _metrics;
     }
 
@@ -352,11 +364,11 @@ public class Executor extends AbstractExecutorService {
 
     private void startControlLoop(int duration, int iterations) {
 
-        boolean measureUtilization = _metrics.contains(Metric.UTILIZATION);
-        boolean measureTaskArrivalRate = _metrics.contains(Metric.TASK_ARRIVAL_RATE);
-        boolean measureTaskCompletionRate = _metrics.contains(Metric.TASK_COMPLETION_RATE);
-        boolean measureTaskRejectionRate = _metrics.contains(Metric.TASK_REJECTION_RATE);
-        boolean measureQueueLength = _metrics.contains(Metric.QUEUE_LENGTH);
+        boolean measureUtilization = _metrics.contains(Stats.Metric.UTILIZATION);
+        boolean measureTaskArrivalRate = _metrics.contains(Stats.Metric.TASK_ARRIVAL_RATE);
+        boolean measureTaskCompletionRate = _metrics.contains(Stats.Metric.TASK_COMPLETION_RATE);
+        boolean measureTaskRejectionRate = _metrics.contains(Stats.Metric.TASK_REJECTION_RATE);
+        boolean measureQueueLength = _metrics.contains(Stats.Metric.QUEUE_LENGTH);
 
         double samplesPerSecond = 1000.0 / duration;
         int iteration = 0;
