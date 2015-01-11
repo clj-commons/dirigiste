@@ -22,7 +22,7 @@ public class Pools {
     }
 
     /**
-     * @param the target utilization per key, within [0, 1]
+     * @param targetUtilizaiton the target utilization per key, within [0, 1]
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
