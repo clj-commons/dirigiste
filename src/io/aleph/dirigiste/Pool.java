@@ -39,7 +39,7 @@ public class Pool<K,V> {
          *
          * @param val  an object which was previously created via 'generate'.
          */
-        void close(K key, V val);
+        void destroy(K key, V val);
     }
 
     public interface AcquireCallback<V> {
@@ -83,9 +83,9 @@ public class Pool<K,V> {
             put(obj);
         }
 
-        public void close(V obj) {
+        public void destroy(V obj) {
             try {
-                _generator.close(_key, obj);
+                _generator.destroy(_key, obj);
             } finally {
                 _numObjects.decrementAndGet();
             }
@@ -119,7 +119,7 @@ public class Pool<K,V> {
             try {
                 take(new AcquireCallback<V>() {
                         public void handleObject(V obj) {
-                            close(obj);
+                            destroy(obj);
                         }
                     });
             } catch (RejectedExecutionException e) {
@@ -135,10 +135,10 @@ public class Pool<K,V> {
                 throw new IllegalStateException("already shutdown");
             }
 
-            if (_closedObjects.contains(obj)) {
+            if (_destroyedObjects.contains(obj)) {
                 _lock.unlock();
                 objects.decrementAndGet();
-                close(obj);
+                destroy(obj);
                 return;
             }
 
@@ -159,7 +159,7 @@ public class Pool<K,V> {
             List<V> dead = new ArrayList<V>();
             V obj = _puts.poll();
             while (obj != null) {
-                if (!_closedObjects.contains(obj)) {
+                if (!_destroyedObjects.contains(obj)) {
                     live.add(obj);
                 } else {
                     dead.add(obj);
@@ -177,7 +177,7 @@ public class Pool<K,V> {
             _lock.unlock();
 
             for (V o : dead) {
-                close(o);
+                destroy(o);
             }
 
             return numObjects;
@@ -193,9 +193,9 @@ public class Pool<K,V> {
             }
 
             V obj = _puts.poll();
-            while (_closedObjects.contains(obj)) {
+            while (_destroyedObjects.contains(obj)) {
                 // expired object, clean it up and try again
-                _closedObjects.remove(obj);
+                _destroyedObjects.remove(obj);
                 objects.decrementAndGet();
                 obj = _puts.poll();
             }
@@ -234,7 +234,7 @@ public class Pool<K,V> {
 
     private final AtomicInteger _numObjects = new AtomicInteger(0);
     private final ReentrantLock _lock = new ReentrantLock();
-    private final Set<V> _closedObjects = Collections.synchronizedSet(new HashSet<V>());
+    private final Set<V> _destroyedObjects = Collections.synchronizedSet(new HashSet<V>());
     private final ConcurrentHashMap<V,Long> _start = new ConcurrentHashMap<V,Long>();
     private final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<K,Queue>();
 
@@ -478,7 +478,7 @@ public class Pool<K,V> {
         Queue q = queue(key);
 
         _lock.lock();
-        _closedObjects.add(obj);
+        _destroyedObjects.add(obj);
         Long start = _start.remove(obj);
         _lock.unlock();
 

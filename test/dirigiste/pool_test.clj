@@ -15,7 +15,7 @@
     (reify Pool$Generator
       (generate [_ k]
         (swap! cnt inc))
-      (close [_ k v]
+      (destroy [_ k v]
         (swap! disposed conj [k v])))))
 
 (defn controller [f]

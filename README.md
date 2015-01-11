@@ -6,6 +6,8 @@ In the default JVM thread pools, once a thread is created it will only be retire
 
 Dirigiste provides a fast, richly instrumented version of a `java.util.concurrent.ExecutorService`, and provides a means to feed that instrumentation into a control mechanism that can grow or shrink the pool as needed.  Default implementations that optimize the pool size for thread utilization are provided.
 
+It also provides an object pool mechanism that uses a similar feedback mechanism to resize itself, and is significantly simple than the [Apache Commons object pool implementation](http://commons.apache.org/proper/commons-pool/).
+
 Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 
 ### usage
@@ -26,16 +28,16 @@ In Maven:
 </dependency>
 ```
 
-### the basics
+### executors
 
-Using the default utilization executor is simple, via [`Executors.utilization(...)`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executors.html#utilization\(double,%20int\)):
+Using the default utilization executor is simple, via [`Executors.utilizationExecutor(...)`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executors.html#utilization\(double,%20int\)):
 
 ```java
 import io.aleph.dirigiste.Executors;
 
 ...
 
-ExecutorService e = Executors.utilization(0.9, 64);
+ExecutorService e = Executors.utilizationExecutor(0.9, 64);
 ```
 
 This will create an executor which will try to size the pool such that 90% of the threads are active, but will not grow beyond 64 threads.
@@ -62,12 +64,56 @@ Executors.utilization(0.9, 64, EnumSet.allOf(Executor.Metric));
 
 This will allow us to track metrics which aren't required for the control loop, but are useful elsewhere.
 
-### creating a controller
+### pools
 
-The [`Controller`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Controller.html) interface is fairly straightforward:
+All pools are defined via their generator, which is used to create and destroy the pooled objects:
 
 ```java
-public interface Controller {
+public interface Pool.Generator<K,V> {
+  V generate(K key) throws Exception;
+  void destroy(K key, V val);
+}
+```
+
+All pooled objects have an associated key.  If objects have no external resources that must be explicitly disposed, `destroy` can be a no-op.
+
+Object pools have three major functions, `acquire`, `release`, and `dispose`.  Typically, objects will be taken out of the pool via `acquire`, and returned back via `release` once they've served their purpose:
+
+```java
+pool = Pools.utilizationPool(generator, 0.9, 4, 1024);
+Object obj = pool.acquire("foo");
+useObject(obj);
+pool.release("foo", obj);
+```
+
+However, if the object has expired, we can `dispose` of it:
+
+```java
+pool.dispose("foo", obj);
+```
+
+A pooled object can be disposed of at any time, without having first been acquired.
+
+To support non-blocking code, we may also acquire an object via a callback mechanism:
+
+```java
+pool.acquire("foo",
+  new AcquireCallback() {
+	public void handleObject(Object obj) {
+		useObject(obj);
+		pool.release("foo", obj);
+	}
+});
+```
+
+### creating a custom controller
+
+### creating a executor controller
+
+The [`Executor.Controller`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Executor.Controller.html) interface is fairly straightforward:
+
+```java
+public interface Executor.Controller {
     boolean shouldIncrement(int currThreads);
     int adjustment(Stats stats);
 }
@@ -80,7 +126,7 @@ The second method, `adjustment`, takes a `Stats` object, and returns a number re
 The utilization controller is quite simple:
 
 ```java
-Controller utilization(final double targetUtilization, final int maxThreadCount) {
+Executor.Controller utilizationController(final double targetUtilization, final int maxThreadCount) {
   return new Controller() {
     public boolean shouldIncrement(int numWorkers) {
       return numWorkers < maxThreadCount;
@@ -95,6 +141,34 @@ Controller utilization(final double targetUtilization, final int maxThreadCount)
 ```
 
 It adjusts the number of threads using the `targetUtilization` compared against the 90th percentile measured utilization over the last `controlPeriod`.  Obviously more sophisticated methods are possible, but they're left as an exercise for the reader.
+
+Controllers for object pools work much the same, except that `adjustment` takes a `Map` of keys onto `Stats` objects, and returns a `Map` of keys onto `Integer` objects.  The utilization controller is otherwise much the same:
+
+```java
+public Pool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
+
+  return new Pool.Controller() {
+    public boolean shouldIncrement(Object key, int objectsForKey, int totalObjects) {
+      return (objectsForKey < maxObjectsPerKey) && (totalObjects < maxTotalObjects);
+    }
+
+    public Map adjustment(Map stats) {
+      Map adj = new HashMap();
+
+	  for (Object e : stats.entrySet()) {
+	    Map.Entry entry = (Map.Entry) e;
+	    Stats s = (Stats) entry.getValue();
+	    int numWorkers = s.getNumWorkers();
+	    double correction = s.getUtilization(0.9) / targetUtilization;
+	    int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
+
+	    adj.put(entry.getKey(), new Integer(n));
+	  }
+      return adj;
+    }
+  };
+}
+```
 
 ### license
 
