@@ -55,8 +55,8 @@ public class Pool<K,V> {
 
         private boolean _isShutdown = false;
 
-        private final BlockingQueue<AcquireCallback<V>> _takes;
-        private final BlockingQueue<V> _puts = new LinkedBlockingQueue();
+        private final Deque<AcquireCallback<V>> _takes;
+        private final Deque<V> _puts = new LinkedBlockingDeque();
         private final K _key;
 
         final AtomicLong incoming = new AtomicLong(0);
@@ -66,7 +66,7 @@ public class Pool<K,V> {
 
         public Queue(K key, int queueSize) {
             _key = key;
-            _takes = new LinkedBlockingQueue(queueSize);
+            _takes = new LinkedBlockingDeque(queueSize);
         }
 
         public int getQueueLength() {
@@ -75,11 +75,6 @@ public class Pool<K,V> {
 
         public void release(V obj) {
             completed.incrementAndGet();
-            put(obj);
-        }
-
-        public void add(V obj) {
-            objects.incrementAndGet();
             put(obj);
         }
 
@@ -105,10 +100,17 @@ public class Pool<K,V> {
         }
 
         public void drop() {
-            int n = objects.get();
+
+            _lock.lock();
+
+            int n;
             while (true) {
-                if (n <= 0) {
-                    // if we're already at zero, it's a no-op
+                n = objects.get();
+
+                // if we're already at zero, or at one with more work to go
+                // it's a no-op
+                if (n <= 0 || (n == 1 && getQueueLength() > 0)) {
+                    _lock.unlock();
                     return;
                 }
                 if (objects.compareAndSet(n, n-1)) {
@@ -121,9 +123,11 @@ public class Pool<K,V> {
                         public void handleObject(V obj) {
                             destroy(obj);
                         }
-                    });
+                    }, true);
             } catch (RejectedExecutionException e) {
                 throw new RuntimeException(e);
+            } finally {
+                _lock.unlock();
             }
         }
 
@@ -136,8 +140,8 @@ public class Pool<K,V> {
             }
 
             if (_destroyedObjects.contains(obj)) {
-                _lock.unlock();
                 objects.decrementAndGet();
+                _lock.unlock();
                 destroy(obj);
                 return;
             }
@@ -163,6 +167,7 @@ public class Pool<K,V> {
                     live.add(obj);
                 } else {
                     dead.add(obj);
+                    _destroyedObjects.remove(obj);
                     objects.decrementAndGet();
                 }
                 obj = _puts.poll();
@@ -183,7 +188,7 @@ public class Pool<K,V> {
             return numObjects;
         }
 
-        public boolean take(AcquireCallback<V> c) throws RejectedExecutionException {
+        public boolean take(AcquireCallback<V> c, boolean skipToFront) throws RejectedExecutionException {
             incoming.incrementAndGet();
             _lock.lock();
 
@@ -197,6 +202,11 @@ public class Pool<K,V> {
                 // expired object, clean it up and try again
                 _destroyedObjects.remove(obj);
                 objects.decrementAndGet();
+
+                _lock.unlock();
+                destroy(obj);
+                _lock.lock();
+
                 obj = _puts.poll();
             }
 
@@ -210,7 +220,7 @@ public class Pool<K,V> {
 
                 // we didn't get one, try to enqueue our request
                 // or reject the request if there are too many already
-                boolean success = _takes.offer(c);
+                boolean success = (skipToFront ? _takes.offerFirst(c) : _takes.offerLast(c));
                 _lock.unlock();
                 if (!success) {
                     rejected.incrementAndGet();
@@ -333,7 +343,10 @@ public class Pool<K,V> {
                     _taskArrivalRates.sample(key, incoming);
                     _taskCompletionRates.sample(key, completed);
                     _taskRejectionRates.sample(key, rejected);
-                    _utilizations.sample(key, ((double) (incoming - completed) / (long) objects));
+
+                    int queueLength = q.getQueueLength();
+                    double utilization = (double) (queueLength > 0 ? (objects + queueLength) : (incoming - completed)) / Math.max(1, objects);
+                    _utilizations.sample(key, utilization);
                 }
 
                 if (_isShutdown) {
@@ -344,6 +357,17 @@ public class Pool<K,V> {
                 if (iteration == 0) {
                     _stats = updateStats();
                     Map<K,Integer> adjustment = _controller.adjustment(_stats);
+
+                    // clear out any unused queues
+                    _lock.lock();
+                    for (Map.Entry<K,Stats> entry : _stats.entrySet()) {
+                        K key = entry.getKey();
+                        if (entry.getValue().getUtilization(1) == 0
+                            && _queues.get(key).objects.get() == 0) {
+                            _queues.remove(key).shutdown();
+                        }
+                    }
+                    _lock.unlock();
 
                     // defer pool growth until we've reduced other pools
                     List<K> upward = new ArrayList<K>();
@@ -421,7 +445,7 @@ public class Pool<K,V> {
 
                         callback.handleObject(obj);
                     }
-                });
+                }, false);
 
         // if we didn't immediately get an object, try to create one
         if (!success) {
