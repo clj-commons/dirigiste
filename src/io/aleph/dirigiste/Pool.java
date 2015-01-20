@@ -413,12 +413,15 @@ public class Pool<K,V> {
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
 
-        new Thread(new Runnable() {
-                public void run() {
-                    startControlLoop(duration, iterations);
-                }
-            },
-            "dirigiste-pool-controller-" + _numPools.getAndIncrement()).start();
+        Thread t =
+            new Thread(new Runnable() {
+                    public void run() {
+                        startControlLoop(duration, iterations);
+                    }
+                },
+                "dirigiste-pool-controller-" + _numPools.getAndIncrement());
+        t.setDaemon(true);
+        t.start();
 
     }
 
