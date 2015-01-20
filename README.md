@@ -6,7 +6,7 @@ In the default JVM thread pools, once a thread is created it will only be retire
 
 Dirigiste provides a fast, richly instrumented version of a `java.util.concurrent.ExecutorService`, and provides a means to feed that instrumentation into a control mechanism that can grow or shrink the pool as needed.  Default implementations that optimize the pool size for thread utilization are provided.
 
-It also provides an object pool mechanism that uses a similar feedback mechanism to resize itself, and is significantly simple than the [Apache Commons object pool implementation](http://commons.apache.org/proper/commons-pool/).
+It also provides an object pool mechanism that uses a similar feedback mechanism to resize itself, and is significantly simpler than the [Apache Commons object pool implementation](http://commons.apache.org/proper/commons-pool/).
 
 Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 
