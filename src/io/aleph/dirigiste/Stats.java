@@ -149,6 +149,10 @@ public class Stats {
 
     public static double lerp(long[] vals, double t) {
 
+        if (vals == null) {
+            return 0;
+        }
+
         if (t < 0 || 1 < t) {
             throw new IllegalArgumentException(new Double(t).toString());
         }
@@ -172,6 +176,10 @@ public class Stats {
 
     public static double lerp(double[] vals, double t) {
 
+        if (vals == null) {
+            return 0;
+        }
+
         if (t < 0 || 1 < t) {
             throw new IllegalArgumentException(new Double(t).toString());
         }
@@ -194,6 +202,10 @@ public class Stats {
     }
 
     public static double mean(double[] vals) {
+        if (vals == null) {
+            return 0;
+        }
+
         double sum = 0;
         for (int i = 0; i < vals.length; i++) {
             sum += vals[i];
@@ -202,6 +214,10 @@ public class Stats {
     }
 
     public static double mean(long[] vals) {
+        if (vals == null) {
+            return 0;
+        }
+
         long sum = 0;
         for (int i = 0; i < vals.length; i++) {
             sum += vals[i];
