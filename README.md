@@ -15,7 +15,7 @@ Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 In Leiningen:
 
 ```clj
-[io.aleph/dirigiste "0.1.0-alpha6"]
+[io.aleph/dirigiste "0.1.0-alpha7"]
 ```
 
 In Maven:

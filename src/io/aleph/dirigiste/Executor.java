@@ -149,12 +149,15 @@ public class Executor extends AbstractExecutorService {
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
 
-        new Thread(new Runnable() {
-                public void run() {
-                    startControlLoop(duration, iterations);
-                }
-            },
-            "dirigiste-executor-controller-" + _numExecutors.getAndIncrement()).start();
+        Thread t =
+            new Thread(new Runnable() {
+                    public void run() {
+                        startControlLoop(duration, iterations);
+                    }
+                },
+                "dirigiste-executor-controller-" + _numExecutors.getAndIncrement());
+        t.setDaemon(true);
+        t.start();
 
         for (int i = 0; i < Math.max(1, initialThreadCount); i++) {
             startWorker();
