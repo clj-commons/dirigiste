@@ -9,7 +9,6 @@
      SynchronousQueue]
     [io.aleph.dirigiste
      Executors
-     Executor
      Stats$Metric]))
 
 (defn run-producer [^java.util.concurrent.Executor ex n interval]
