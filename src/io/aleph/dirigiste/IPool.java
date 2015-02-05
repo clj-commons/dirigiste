@@ -52,7 +52,7 @@ public interface IPool<K,V> {
      * @param key  the key of the pooled object being acquired
      * @param callback  the callback that will be invoked with the object once it's available
      */
-    void acquire(K key, Pool.AcquireCallback<V> callback);
+    void acquire(K key, AcquireCallback<V> callback);
 
     /**
      * Acquires an object from the pool, potentially creating one if none is available.
