@@ -487,12 +487,10 @@ public class Pool<K,V> {
         long end = System.nanoTime();
         Long start = _start.remove(obj);
 
-        if (start == null) {
-            throw new IllegalStateException("tried to release an object that hasn't been acquired");
+        if (start != null) {
+            _taskLatencies.sample(key, end - start.longValue());
+            queue(key).put(obj);
         }
-
-        _taskLatencies.sample(key, end - start.longValue());
-        queue(key).put(obj);
     }
 
     /**
