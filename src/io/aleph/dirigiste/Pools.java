@@ -9,8 +9,8 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool.Controller fixedController(final int maxObjectsPerKey, final int maxTotalObjects) {
-        return new Pool.Controller() {
+    public static IPool.Controller fixedController(final int maxObjectsPerKey, final int maxTotalObjects) {
+        return new IPool.Controller() {
             public boolean shouldIncrement(Object key, int objectsForKey, int totalObjects) {
                 return (objectsForKey < maxObjectsPerKey) && (totalObjects < maxTotalObjects);
             }
@@ -26,9 +26,9 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
+    public static IPool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
 
-        return new Pool.Controller() {
+        return new IPool.Controller() {
             public boolean shouldIncrement(Object key, int objectsForKey, int totalObjects) {
                 return (objectsForKey < maxObjectsPerKey) && (totalObjects < maxTotalObjects);
             }
@@ -56,7 +56,7 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool utilizationPool(Pool.Generator generator, double targetUtilization, int maxObjectsPerKey, int maxTotalObjects) {
+    public static IPool utilizationPool(IPool.Generator generator, double targetUtilization, int maxObjectsPerKey, int maxTotalObjects) {
         return utilizationPool(generator, 65536, targetUtilization, maxObjectsPerKey, maxTotalObjects);
     }
 
@@ -67,7 +67,7 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool utilizationPool(Pool.Generator generator, int maxQueueLength, double targetUtilization, int maxObjectsPerKey, int maxTotalObjects) {
+    public static IPool utilizationPool(IPool.Generator generator, int maxQueueLength, double targetUtilization, int maxObjectsPerKey, int maxTotalObjects) {
         return new Pool(generator, utilizationController(targetUtilization, maxObjectsPerKey, maxTotalObjects), maxQueueLength, 25, 1000, TimeUnit.MILLISECONDS);
     }
 
@@ -76,7 +76,7 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool fixedPool(Pool.Generator generator, int maxObjectsPerKey, int maxTotalObjects) {
+    public static IPool fixedPool(IPool.Generator generator, int maxObjectsPerKey, int maxTotalObjects) {
         return fixedPool(generator, 65536, maxObjectsPerKey, maxTotalObjects);
     }
 
@@ -86,7 +86,7 @@ public class Pools {
      * @param maxObjectsPerKey the maximum number of pooled objects per key
      * @param maxTotalObjects the total number of object that the pool can contain
      */
-    public static Pool fixedPool(Pool.Generator generator, int maxQueueLength, int maxObjectsPerKey, int maxTotalObjects) {
+    public static IPool fixedPool(IPool.Generator generator, int maxQueueLength, int maxObjectsPerKey, int maxTotalObjects) {
         return new Pool(generator, fixedController(maxObjectsPerKey, maxTotalObjects), maxQueueLength, 25, 1000, TimeUnit.MILLISECONDS);
     }
 }
