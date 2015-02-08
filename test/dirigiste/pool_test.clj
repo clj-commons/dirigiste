@@ -7,19 +7,19 @@
     [io.aleph.dirigiste
      Pools
      Pool
-     Pool$Generator
-     Pool$Controller]))
+     IPool$Generator
+     IPool$Controller]))
 
 (defn generator [disposed]
   (let [cnt (atom 0)]
-    (reify Pool$Generator
+    (reify IPool$Generator
       (generate [_ k]
         (swap! cnt inc))
       (destroy [_ k v]
         (swap! disposed conj [k v])))))
 
 (defn controller [f]
-  (reify Pool$Controller
+  (reify IPool$Controller
     (shouldIncrement [_ key objects-for-key total-objects]
       true)
     (adjustment [_ key->stats]
