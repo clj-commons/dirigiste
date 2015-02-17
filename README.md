@@ -15,7 +15,7 @@ Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 In Leiningen:
 
 ```clj
-[io.aleph/dirigiste "0.1.0-alpha7"]
+[io.aleph/dirigiste "0.1.0-alpha8"]
 ```
 
 In Maven:
@@ -24,7 +24,7 @@ In Maven:
 <dependency>
   <groupId>io.aleph</groupId>
   <artifactId>dirigiste</artifactId>
-  <version>0.1.0-alpha6</version>
+  <version>0.1.0-alpha8</version>
 </dependency>
 ```
 
