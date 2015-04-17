@@ -22,28 +22,30 @@ public class Stats {
         }
     };
 
+    private static final int RESERVOIR_SIZE = 4096;
+
     public static class UniformLongReservoir {
 
         private final AtomicInteger _count = new AtomicInteger();
-        private final AtomicLongArray _values = new AtomicLongArray(1024);
+        private final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
 
         UniformLongReservoir() {
         }
 
         public void sample(long n) {
             int cnt = _count.incrementAndGet();
-            if (cnt <= 1024) {
+            if (cnt <= RESERVOIR_SIZE) {
                 _values.set(cnt-1, n);
             } else {
                 int idx = _randoms.get().nextInt(cnt);
-                if (idx < 1024) {
+                if (idx < RESERVOIR_SIZE) {
                     _values.set(idx, n);
                 }
             }
         }
 
         public long[] toArray() {
-            int cnt = Math.min(1024, _count.get());
+            int cnt = Math.min(RESERVOIR_SIZE, _count.get());
 
             long[] vals = new long[cnt];
             for (int i = 0; i < cnt; i++) {
@@ -63,25 +65,25 @@ public class Stats {
         };
 
         private final AtomicInteger _count = new AtomicInteger();
-        private final AtomicLongArray _values = new AtomicLongArray(1024);
+        private final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
 
         UniformDoubleReservoir() {
         }
 
         public void sample(double n) {
             int cnt = _count.incrementAndGet();
-            if (cnt <= 1024) {
+            if (cnt <= RESERVOIR_SIZE) {
                 _values.set(cnt-1, Double.doubleToLongBits(n));
             } else {
                 int idx = _randoms.get().nextInt(cnt);
-                if (idx < 1024) {
+                if (idx < RESERVOIR_SIZE) {
                     _values.set(idx, Double.doubleToLongBits(n));
                 }
             }
         }
 
         public double[] toArray() {
-            int cnt = Math.min(1024, _count.get());
+            int cnt = Math.min(RESERVOIR_SIZE, _count.get());
 
             double[] vals = new double[cnt];
             for (int i = 0; i < cnt; i++) {

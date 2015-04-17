@@ -1,4 +1,4 @@
-(defproject io.aleph/dirigiste "0.1.0-alpha8"
+(defproject io.aleph/dirigiste "0.1.0"
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                                     :creds :gpg}
                         "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"
@@ -9,4 +9,17 @@
   :dependencies []
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.7.0-alpha5"]]}}
   :java-source-paths ["src"]
-  :javac-options ["-target" "1.6" "-source" "1.6"])
+  :javac-options ["-target" "1.6" "-source" "1.6"]
+
+  ;; Maven properties for the Maven God
+  :scm {:url "git@github.com:ztellman/dirigiste.git"}
+  :pom-addition [:developers [:developer
+                              [:name "Zach Tellman"]
+                              [:url "http://ideolalia.com"]
+                              [:email "ztellman@gmail.com"]
+                              [:timezone "-8"]]]
+  :classifiers {:javadoc {:java-source-paths ^:replace []
+                          :source-paths ^:replace []
+                          :resource-paths ^:replace []}
+                :sources {:java-source-paths ^:replace []
+                          :resource-paths ^:replace []}})

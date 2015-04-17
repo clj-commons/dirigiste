@@ -425,7 +425,7 @@ public class Executor extends AbstractExecutorService {
                             break;
                         }
 
-                        if (adjustment < 0) {
+                        if (adjustment < 0 && _queue.size() == 0) {
 
                             // never let the number of workers drop below 1
                             adjustment = Math.min(-adjustment, _numWorkers.get()-1);

@@ -15,7 +15,7 @@ Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 In Leiningen:
 
 ```clj
-[io.aleph/dirigiste "0.1.0-alpha8"]
+[io.aleph/dirigiste "0.1.0"]
 ```
 
 In Maven:
@@ -24,7 +24,7 @@ In Maven:
 <dependency>
   <groupId>io.aleph</groupId>
   <artifactId>dirigiste</artifactId>
-  <version>0.1.0-alpha8</version>
+  <version>0.1.0</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ Since instrumentation will cause some small overhead, you may specify which dime
 
 | metric | description |
 |-------|-------------|
-| `QUEUE_LATENCY` | the time spend on the queue for each task, in nanoseconds |
+| `QUEUE_LATENCY` | the time spent on the queue for each task, in nanoseconds |
 | `TASK_LATENCY` | the time taken to complete a task, including time spent on the queue, in nanoseconds |
 | `QUEUE_LENGTH` | the length of the queue |
 | `TASK_ARRIVAL_RATE` | the rate of incoming tasks per second |
@@ -99,10 +99,10 @@ To support non-blocking code, we may also acquire an object via a callback mecha
 ```java
 pool.acquire("foo",
   new AcquireCallback() {
-	public void handleObject(Object obj) {
-		useObject(obj);
-		pool.release("foo", obj);
-	}
+        public void handleObject(Object obj) {
+                useObject(obj);
+                pool.release("foo", obj);
+        }
 });
 ```
 
@@ -153,15 +153,15 @@ public Pool.Controller utilizationController(final double targetUtilization, fin
     public Map adjustment(Map stats) {
       Map adj = new HashMap();
 
-	  for (Object e : stats.entrySet()) {
-	    Map.Entry entry = (Map.Entry) e;
-	    Stats s = (Stats) entry.getValue();
-	    int numWorkers = s.getNumWorkers();
-	    double correction = s.getUtilization(0.9) / targetUtilization;
-	    int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
+          for (Object e : stats.entrySet()) {
+            Map.Entry entry = (Map.Entry) e;
+            Stats s = (Stats) entry.getValue();
+            int numWorkers = s.getNumWorkers();
+            double correction = s.getUtilization(0.9) / targetUtilization;
+            int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
 
-	    adj.put(entry.getKey(), new Integer(n));
-	  }
+            adj.put(entry.getKey(), new Integer(n));
+          }
       return adj;
     }
   };
@@ -170,6 +170,6 @@ public Pool.Controller utilizationController(final double targetUtilization, fin
 
 ### license
 
-Copyright © 2014 Zachary Tellman
+Copyright © 2015 Zachary Tellman
 
 Distributed under the MIT License

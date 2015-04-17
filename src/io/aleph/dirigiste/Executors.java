@@ -66,7 +66,7 @@ public class Executors {
 
             public int adjustment(Stats stats) {
                 int numWorkers = stats.getNumWorkers();
-                double correction = stats.getUtilization(0.9) / targetUtilization;
+                double correction = stats.getUtilization(1.0) / targetUtilization;
                 int n = (int) Math.ceil(stats.getNumWorkers() * correction) - numWorkers;
 
                 if (n < 0) {

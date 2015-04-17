@@ -64,9 +64,9 @@ public class Pool<K,V> implements IPool<K,V> {
             while (true) {
                 n = objects.get();
 
-                // if we're already at zero, or at one with more work to go
+                // if we're already at zero, or have more work to do
                 // it's a no-op
-                if (n <= 0 || (n == 1 && getQueueLength() > 0)) {
+                if (n <= 0 || getQueueLength() > 0) {
                     _lock.unlock();
                     return;
                 }
