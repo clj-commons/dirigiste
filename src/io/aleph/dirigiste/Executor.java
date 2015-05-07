@@ -28,22 +28,35 @@ public class Executor extends AbstractExecutorService {
         public volatile boolean _isShutdown = false;
 
         private final AtomicInteger _completed = new AtomicInteger(0);
+
+        private long _birth = System.nanoTime();
+        private final AtomicLong _start = new AtomicLong(0);
+        private final AtomicLong _totalDuration = new AtomicLong(0);
+
         private final CountDownLatch _latch = new CountDownLatch(1);
         private final Thread _thread;
 
         Worker() {
 
             final boolean taskCompletionRate = _metrics.contains(Stats.Metric.TASK_COMPLETION_RATE);
+            final boolean workerUtilization = _metrics.contains(Stats.Metric.UTILIZATION);
 
             Runnable runnable =
                 new Runnable() {
                     public void run() {
                         try {
+
+                            _birth = System.nanoTime();
+
                             while (!_isShutdown) {
                                 Runnable r = (Runnable) _queue.poll(1000, TimeUnit.MILLISECONDS);
 
                                 if (r != null) {
                                     _runnable = r;
+
+                                    if (workerUtilization) {
+                                        _start.set(System.nanoTime());
+                                    }
 
                                     try {
                                         r.run();
@@ -51,6 +64,11 @@ public class Executor extends AbstractExecutorService {
 
                                     } finally {
                                         _runnable = null;
+
+                                        if (workerUtilization) {
+                                            _totalDuration.addAndGet(System.nanoTime() - _start.getAndSet(0));
+                                        }
+
                                         if (taskCompletionRate) {
                                             _completed.incrementAndGet();
                                         }
@@ -69,8 +87,23 @@ public class Executor extends AbstractExecutorService {
             _thread.start();
         }
 
+        public double utilization(long t0, long t1) {
+            long start = _start.getAndSet(t1);
+            if (start == 0) {
+                _start.compareAndSet(t1, 0);
+            }
+            long active = _totalDuration.getAndSet(0) + (start == 0 ? 0 : t1 - start);
+            long total = t1 - Math.max(t0, _birth);
+
+            return (double) active / (double) total;
+        }
+
         public boolean isActive() {
             return _runnable != null;
+        }
+
+        public boolean isShutdown() {
+            return _isShutdown;
         }
 
         public boolean shutdown() {
@@ -375,6 +408,7 @@ public class Executor extends AbstractExecutorService {
 
         double samplesPerSecond = 1000.0 / duration;
         int iteration = 0;
+        long utilizationSample = 0;
 
         try {
             while (!_isShutdown) {
@@ -395,20 +429,33 @@ public class Executor extends AbstractExecutorService {
                     _taskRejectionRates.get().sample(_rejectedTasks.getAndSet(0) * samplesPerSecond);
                 }
 
-                int active = 0;
-                int cnt = _workers.size();
                 int tasks = 0;
+
+                int workerCount = 0;
+                double utilizationSum = 0.0;
+                long nextUtilizationSample = 0;
+                if (measureUtilization) {
+                    nextUtilizationSample = System.nanoTime();
+                }
+
                 for (Worker w : _workers) {
-                    if (w.isActive()) {
-                        active++;
+                    if (w.isShutdown()) {
+                        continue;
                     }
+
+                    if (measureUtilization) {
+                        workerCount++;
+                        utilizationSum += w.utilization(utilizationSample, nextUtilizationSample);
+                    }
+
                     if (measureTaskCompletionRate) {
                         tasks += w._completed.getAndSet(0);
                     }
                 }
 
                 if (measureUtilization) {
-                    _utilizations.get().sample((double) active / cnt);
+                    utilizationSample = nextUtilizationSample;
+                    _utilizations.get().sample(utilizationSum / (double) workerCount);
                 }
 
                 if (measureTaskCompletionRate) {
