@@ -24,7 +24,7 @@ In Maven:
 <dependency>
   <groupId>io.aleph</groupId>
   <artifactId>dirigiste</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 ```
 
