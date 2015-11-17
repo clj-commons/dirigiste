@@ -59,7 +59,7 @@ Since instrumentation will cause some small overhead, you may specify which dime
 These metrics are surfaced via the [`Stats`](http://ideolalia.com/dirigiste/io/aleph/dirigiste/Stats.html) class, which provides `getMean...()` and `get...(double quantile)` for each metric.  By default, the utilization executor will only measure utilization, but if we want to get the full range of metrics, we can instantiate it like this:
 
 ```java
-Executors.utilization(0.9, 64, EnumSet.allOf(Executor.Metric));
+Executors.utilizationExecutor(0.9, 64, EnumSet.allOf(Executor.Metric));
 ```
 
 This will allow us to track metrics which aren't required for the control loop, but are useful elsewhere.
@@ -146,22 +146,23 @@ It adjusts the number of threads using the `targetUtilization` compared against 
 public Pool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
 
   return new Pool.Controller() {
-    public boolean shouldIncrement(Object key, int objectsForKey, int totalObjects) {
+    public boolean shouldIncrement(Objec t key, int objectsForKey, int totalObjects) {
       return (objectsForKey < maxObjectsPerKey) && (totalObjects < maxTotalObjects);
     }
 
-    public Map adjustment(Map stats) {
+    public Map adjustment(Map<K, Stats> stats) {
       Map adj = new HashMap();
+      
+      for ( e : stats.entrySet()) {
+        Map.Entry entry = (Map.Entry) e;
+        Stats s = (Stats) entry.getValue();
+        int numWorkers = s.getNumWorkers();
+        double correction = s.getUtilization(0.9) / targetUtilization;
+        int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
 
-          for (Object e : stats.entrySet()) {
-            Map.Entry entry = (Map.Entry) e;
-            Stats s = (Stats) entry.getValue();
-            int numWorkers = s.getNumWorkers();
-            double correction = s.getUtilization(0.9) / targetUtilization;
-            int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
+        adj.put(entry.getKey(), new Integer(n));
+      }
 
-            adj.put(entry.getKey(), new Integer(n));
-          }
       return adj;
     }
   };
