@@ -97,6 +97,7 @@ public class Pool<K,V> implements IPool<K,V> {
             }
 
             if (_destroyedObjects.contains(obj)) {
+                _destroyedObjects.remove(obj);
                 objects.decrementAndGet();
                 _lock.unlock();
                 destroy(obj);
