@@ -15,7 +15,7 @@ Full documentation can be found [here](http://ideolalia.com/dirigiste/).
 In Leiningen:
 
 ```clj
-[io.aleph/dirigiste "0.1.1"]
+[io.aleph/dirigiste "0.1.2"]
 ```
 
 In Maven:
@@ -24,7 +24,7 @@ In Maven:
 <dependency>
   <groupId>io.aleph</groupId>
   <artifactId>dirigiste</artifactId>
-  <version>0.1.1</version>
+  <version>0.1.2</version>
 </dependency>
 ```
 
@@ -152,7 +152,7 @@ public Pool.Controller utilizationController(final double targetUtilization, fin
 
     public Map adjustment(Map<K, Stats> stats) {
       Map adj = new HashMap();
-      
+
       for ( e : stats.entrySet()) {
         Map.Entry entry = (Map.Entry) e;
         Stats s = (Stats) entry.getValue();
