@@ -1,4 +1,4 @@
-(defproject io.aleph/dirigiste "0.1.2-alpha1"
+(defproject io.aleph/dirigiste "0.1.2"
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                                     :creds :gpg}
                         "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"
@@ -7,7 +7,7 @@
   :description "centrally planned thread and object pools"
   :license {:name "MIT License"}
   :dependencies []
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.7.0-alpha5"]]}}
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]]}}
   :java-source-paths ["src"]
   :javac-options ["-target" "1.6" "-source" "1.6"]
 

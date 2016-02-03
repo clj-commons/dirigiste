@@ -202,7 +202,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
     private final AtomicInteger _numObjects = new AtomicInteger(0);
     private final ReentrantLock _lock = new ReentrantLock();
-    private final Set<V> _destroyedObjects = Collections.synchronizedSet(new HashSet<V>());
+    private final Set<V> _destroyedObjects = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<V, Boolean>()));
     private final ConcurrentHashMap<V,Long> _start = new ConcurrentHashMap<V,Long>();
     private final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<K,Queue>();
 
