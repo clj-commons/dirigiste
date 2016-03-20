@@ -10,3 +10,4 @@ pom.xml.asc
 /doc
 push
 .DS_Store
+.java-version
