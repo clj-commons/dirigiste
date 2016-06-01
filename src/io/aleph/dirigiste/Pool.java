@@ -30,6 +30,10 @@ public class Pool<K,V> implements IPool<K,V> {
             return _takes.size();
         }
 
+        public void cancelTake(AcquireCallback<V> take) {
+            _takes.remove(take);
+        }
+
         public void release(V obj) {
             completed.incrementAndGet();
             put(obj);
@@ -390,8 +394,8 @@ public class Pool<K,V> implements IPool<K,V> {
         final long start = System.nanoTime();
 
         Queue q = queue(key);
-        boolean success =
-            q.take(new AcquireCallback<V>() {
+        AcquireCallback<V> wrapper =
+            new AcquireCallback<V>() {
                     public void handleObject(V obj) {
 
                         // do all the latency bookkeeping
@@ -401,11 +405,17 @@ public class Pool<K,V> implements IPool<K,V> {
 
                         callback.handleObject(obj);
                     }
-                }, false);
+            };
+        boolean success = q.take(wrapper, false);
 
         // if we didn't immediately get an object, try to create one
         if (!success) {
-            addObject(key);
+            try {
+                addObject(key);
+            } catch (Throwable e) {
+                q.cancelTake(wrapper);
+                throw new RuntimeException(e);
+            }
         }
     }
 
