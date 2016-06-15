@@ -78,7 +78,7 @@ public class Executor extends AbstractExecutorService {
                         } catch (InterruptedException e) {
 
                         }
-                        _workers.remove(this);
+                        _workers.remove(Worker.this);
                         _latch.countDown();
                     }
                 };
