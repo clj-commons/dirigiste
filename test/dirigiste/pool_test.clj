@@ -25,8 +25,11 @@
     (adjustment [_ key->stats]
       (f key->stats))))
 
-(defn pool [generator controller]
-  (Pool. generator controller 1e5 25 1e4 TimeUnit/MILLISECONDS))
+(defn pool
+  ([generator controller]
+   (pool generator controller 1e5))
+  ([generator controller max-queue-size]
+   (Pool. generator controller max-queue-size 25 1e4 TimeUnit/MILLISECONDS)))
 
 (deftest test-basic-pool-ops
   (let [disposed (atom #{})
@@ -56,6 +59,28 @@
       @stats
       (finally
         (.shutdown p)))))
+
+(defn simple-generator [generate-fn]
+  (reify IPool$Generator
+    (generate [_ k]
+      (generate-fn k))
+    (destroy [_ k v])))
+
+;; Test for: https://github.com/ztellman/dirigiste/issues/7
+(deftest test-acquire-error-after-throw-in-addobject
+  (let [p (pool
+            (simple-generator (fn [k] (if (= :fail k)
+                                        (throw (Exception. "Failed"))
+                                        k)))
+            (Pools/fixedController 1 1)
+            1)]
+    (is (= :ok (.acquire p :ok)))
+    (.dispose p :ok :ok)
+
+    (is (thrown-with-msg? Exception #"Failed"
+          (.acquire p :fail)))
+    (is (thrown-with-msg? Exception #"Failed"
+          (.acquire p :fail)))))
 
 (deftest test-adjustment
   (let [stats (:foo
