@@ -1,4 +1,4 @@
-(defproject io.aleph/dirigiste "0.1.3"
+(defproject io.aleph/dirigiste "0.1.4-alpha1"
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                                     :creds :gpg}
                         "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"
