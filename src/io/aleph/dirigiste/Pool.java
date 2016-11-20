@@ -452,6 +452,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
         _lock.lock();
         _destroyedObjects.add(obj);
+        int pendingTakes = q._takes.size();
         Long start = _start.remove(obj);
         _lock.unlock();
 
@@ -460,6 +461,10 @@ public class Pool<K,V> implements IPool<K,V> {
             q.put(obj);
         } else {
             q.cleanup();
+        }
+
+        if (pendingTakes > 0) {
+            addObject(key);
         }
     }
 

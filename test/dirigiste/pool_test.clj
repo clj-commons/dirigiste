@@ -18,10 +18,10 @@
       (destroy [_ k v]
         (swap! disposed conj [k v])))))
 
-(defn controller [f]
+(defn controller [f max-objects]
   (reify IPool$Controller
     (shouldIncrement [_ key objects-for-key total-objects]
-      true)
+      (< total-objects max-objects))
     (adjustment [_ key->stats]
       (f key->stats))))
 
@@ -33,7 +33,7 @@
 
 (deftest test-basic-pool-ops
   (let [disposed (atom #{})
-        p (pool (generator disposed) (controller (constantly {})))]
+        p (pool (generator disposed) (controller (constantly {}) 3))]
     (try
       (is (= 1 (.acquire p :foo)))
       (is (= 2 (.acquire p :bar)))
@@ -45,7 +45,8 @@
       (is (= 2 (.acquire p :bar)))
       (.dispose p :bar 2)
       (.dispose p :foo 1)
-      (is (= #{[:foo 1] [:bar 2]} @disposed))
+      (.dispose p :foo 3)
+      (is (= #{[:foo 1] [:bar 2] [:foo 3]} @disposed))
       (finally
         (.shutdown p)))))
 
@@ -53,7 +54,7 @@
   (let [stats (promise)
         p (pool
             (generator (atom #{}))
-            (controller #(do (deliver stats %) {})))]
+            (controller #(do (deliver stats %) {}) 1e4))]
     (try
       (f p)
       @stats
