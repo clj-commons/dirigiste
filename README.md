@@ -15,7 +15,7 @@ Full documentation can be found [here](http://ztellman.github.com/dirigiste/).
 In Leiningen:
 
 ```clj
-[io.aleph/dirigiste "0.1.2"]
+[io.aleph/dirigiste "0.1.4"]
 ```
 
 In Maven:
@@ -24,7 +24,7 @@ In Maven:
 <dependency>
   <groupId>io.aleph</groupId>
   <artifactId>dirigiste</artifactId>
-  <version>0.1.2</version>
+  <version>0.1.4</version>
 </dependency>
 ```
 
