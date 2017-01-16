@@ -247,15 +247,21 @@ public class Executor extends AbstractExecutorService {
     /**
      * A version of execute which will simply block until the task is accepted, rather than
      * throwing a RejectedExceptionException.
+     *
+     * RejectedExecutionException will only be thrown if the executor is shut down.
      */
     public void executeWithoutRejection(Runnable runnable) throws NullPointerException, InterruptedException {
-         if (runnable == null) {
+        if (runnable == null) {
             throw new NullPointerException();
         }
 
-         if (_measureTaskArrivalRate) {
-             _incomingTasks.incrementAndGet();
-         }
+        if (_isShutdown) {
+            throw new RejectedExecutionException("Executor is shutdown!");
+        }
+
+        if (_measureTaskArrivalRate) {
+            _incomingTasks.incrementAndGet();
+        }
 
         if (_measureTaskLatency || _measureQueueLatency) {
             final long enqueue = System.nanoTime();
@@ -288,6 +294,10 @@ public class Executor extends AbstractExecutorService {
     public void execute(Runnable runnable) throws NullPointerException, RejectedExecutionException {
         if (runnable == null) {
             throw new NullPointerException();
+        }
+
+        if (_isShutdown) {
+            throw new RejectedExecutionException("Executor is shutdown!");
         }
 
         if (_measureTaskArrivalRate) {
@@ -356,18 +366,21 @@ public class Executor extends AbstractExecutorService {
 
     @Override
     public List<Runnable> shutdownNow() {
-        List<Runnable> rs = new ArrayList<Runnable>();
-        _queue.drainTo(rs);
-        for (Worker w : _workers) {
-            Runnable r = w._runnable;
-            w.shutdown();
-            w._thread.interrupt();
+        synchronized (this) {
+            _isShutdown = true;
+            List<Runnable> rs = new ArrayList<Runnable>();
+            _queue.drainTo(rs);
+            for (Worker w : _workers) {
+                Runnable r = w._runnable;
+                w.shutdown();
+                w._thread.interrupt();
 
-            if (r != null) {
-                rs.add(r);
+                if (r != null) {
+                    rs.add(r);
+                }
             }
+            return rs;
         }
-        return rs;
     }
 
     ///
