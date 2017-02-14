@@ -51,8 +51,8 @@
     (try
       (dotimes [_ 1]
         (is (< 30 (.getNumWorkers (stress-executor ex 32 1e5 pause)) 40))
-        (is (< 2 (.getNumWorkers (stress-executor ex 4 5e5 pause)) 8))
         (is (< 15 (.getNumWorkers (stress-executor ex 16 1e5 pause)) 20))
+        (is (< 5 (.getNumWorkers (stress-executor ex 8 1e5 pause)) 15))
         (Thread/sleep (* 1000 10))
         (is (= 1 (-> ex .getStats .getNumWorkers))))
       (finally
@@ -60,8 +60,8 @@
 
 (deftest test-executor
   (run-executor-test 0)
-  (run-executor-test 1)
-  (run-executor-test 10))
+  #_(run-executor-test 1)
+  #_(run-executor-test 10))
 
 (deftest ^:stress test-utilization-metric
   )

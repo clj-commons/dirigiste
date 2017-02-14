@@ -21,5 +21,5 @@
   :classifiers {:javadoc {:java-source-paths ^:replace []
                           :source-paths ^:replace []
                           :resource-paths ^:replace []}
-                :sources {:java-source-paths ^:replace []
+                :sources {:java-source-paths ^:replace ["src"]
                           :resource-paths ^:replace []}})

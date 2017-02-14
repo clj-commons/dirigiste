@@ -5,7 +5,15 @@ import java.util.EnumSet;
 
 public class Executors {
 
-    private static ThreadFactory defaultThreadFactory = java.util.concurrent.Executors.defaultThreadFactory();
+    private static ThreadFactory threadFactory() {
+        return new ThreadFactory() {
+            public Thread newThread(Runnable r) {
+                Thread t = java.util.concurrent.Executors.defaultThreadFactory().newThread(r);
+                t.setDaemon(true);
+                return t;
+            }
+        };
+    }
 
     /**
      * @param numThreads  the number of threads in the thread pool
@@ -19,7 +27,7 @@ public class Executors {
      * @param metrics  the metrics that will be gathered by the executor
      */
     public static Executor fixedExecutor(final int numThreads, EnumSet<Stats.Metric> metrics) {
-        return new Executor(defaultThreadFactory, new SynchronousQueue(false), fixedController(numThreads), numThreads, metrics, 25, 10000, TimeUnit.MILLISECONDS);
+        return new Executor(threadFactory(), new SynchronousQueue(false), fixedController(numThreads), numThreads, metrics, 25, 10000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -51,7 +59,7 @@ public class Executors {
      * @param metrics  the metrics which should be gathered
      */
     public static Executor utilizationExecutor(double targetUtilization, int maxThreadCount, EnumSet<Stats.Metric> metrics) {
-        return new Executor(defaultThreadFactory, new SynchronousQueue(false), utilizationController(targetUtilization, maxThreadCount), 1, metrics, 25, 10000, TimeUnit.MILLISECONDS);
+        return new Executor(threadFactory(), new SynchronousQueue(false), utilizationController(targetUtilization, maxThreadCount), 1, metrics, 25, 10000, TimeUnit.MILLISECONDS);
     }
 
     /**

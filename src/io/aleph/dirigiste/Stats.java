@@ -216,7 +216,7 @@ public class Stats {
     }
 
     public static double mean(long[] vals) {
-        if (vals == null) {
+        if (vals == null || vals.length == 0) {
             return 0;
         }
 
