@@ -119,12 +119,21 @@ public class Pool<K,V> implements IPool<K,V> {
         }
 
         public int cleanup() {
+            return cleanup(null);
+        }
+
+        private int cleanup(V destroyed) {
             _lock.lock();
 
             List<V> live = new ArrayList<V>();
             List<V> dead = new ArrayList<V>();
+            boolean destroyedProcessed = false;
             V obj = _puts.poll();
             while (obj != null) {
+                if (obj == destroyed) {
+                    destroyedProcessed = true;
+                }
+
                 if (!_destroyedObjects.contains(obj)) {
                     live.add(obj);
                 } else {
@@ -133,6 +142,11 @@ public class Pool<K,V> implements IPool<K,V> {
                     objects.decrementAndGet();
                 }
                 obj = _puts.poll();
+            }
+
+            if (destroyed != null && !destroyedProcessed) {
+                _destroyedObjects.remove(destroyed);
+                dead.add(destroyed);
             }
 
             int numObjects = objects.get();
@@ -460,7 +474,7 @@ public class Pool<K,V> implements IPool<K,V> {
         if (start != null) {
             q.put(obj);
         } else {
-            q.cleanup();
+            q.cleanup(obj);
         }
 
         if (pendingTakes > 0) {
