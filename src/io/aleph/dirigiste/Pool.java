@@ -351,7 +351,6 @@ public class Pool<K,V> implements IPool<K,V> {
                     // a random subset
                     Collections.shuffle(upward);
                     for (K key : upward) {
-                        Queue q = queue(key);
                         addObject(key);
                     }
                 }
