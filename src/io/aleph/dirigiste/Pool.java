@@ -401,7 +401,7 @@ public class Pool<K,V> implements IPool<K,V> {
                         // do all the latency bookkeeping
                         long acquire = System.nanoTime();
                         _queueLatencies.sample(key, acquire - start);
-                        _start.put(obj, new Long(start));
+                        _start.put(obj, start);
 
                         callback.handleObject(obj);
                     }

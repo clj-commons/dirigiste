@@ -43,7 +43,7 @@ public class Pools {
                     double correction = s.getUtilization(1.0) / targetUtilization;
                     int n = (int) Math.ceil(s.getNumWorkers() * correction) - numWorkers;
 
-                    adj.put(entry.getKey(), new Integer(n));
+                    adj.put(entry.getKey(), n);
                 }
                 return adj;
             }
