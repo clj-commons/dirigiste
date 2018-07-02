@@ -156,7 +156,7 @@ public class Stats {
         }
 
         if (t < 0 || 1 < t) {
-            throw new IllegalArgumentException(new Double(t).toString());
+            throw new IllegalArgumentException(Double.toString(t));
         }
 
         int cnt = vals.length;
@@ -183,7 +183,7 @@ public class Stats {
         }
 
         if (t < 0 || 1 < t) {
-            throw new IllegalArgumentException(new Double(t).toString());
+            throw new IllegalArgumentException(Double.toString(t));
         }
 
         int cnt = vals.length;
