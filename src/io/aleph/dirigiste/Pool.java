@@ -243,17 +243,7 @@ public class Pool<K,V> implements IPool<K,V> {
         Map<K,double[]> taskRejectionRates = _taskRejectionRates.toMap();
 
         final Set<K> keys = _queues.keySet();
-
-        // compute HashMap initial capacity to keep the map from being
-        // resized while we put elements
-        // 0.75 is the default load factor
-        final int mapCapacity;
-        if (keys.size() < 3) {
-            mapCapacity = keys.size() + 1;
-        } else {
-            mapCapacity = (int) ((float) keys.size() / 0.75F + 1.0F);
-        }
-        final Map<K,Stats> stats = new HashMap<K,Stats>(mapCapacity);
+        final Map<K,Stats> stats = new HashMap<K,Stats>(Stats.hashMapCapacity(keys.size()));
 
         for (K key : keys) {
             stats.put(key,
