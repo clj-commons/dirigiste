@@ -34,7 +34,7 @@ public class Pools {
             }
 
             public Map adjustment(Map stats) {
-                Map adj = new HashMap();
+                final Map adj = new HashMap(Stats.hashMapCapacity(stats.size()));
 
                 for (Object e : stats.entrySet()) {
                     Map.Entry entry = (Map.Entry) e;

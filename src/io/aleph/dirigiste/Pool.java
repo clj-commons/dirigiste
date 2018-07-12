@@ -201,7 +201,6 @@ public class Pool<K,V> implements IPool<K,V> {
     private final Generator<K,V> _generator;
     private final Controller<K> _controller;
 
-    private Map<K,Stats> _stats;
     private boolean _isShutdown = false;
 
     private final AtomicInteger _numObjects = new AtomicInteger(0);
@@ -242,8 +241,10 @@ public class Pool<K,V> implements IPool<K,V> {
         Map<K,double[]> taskCompletionRates = _taskCompletionRates.toMap();
         Map<K,double[]> taskRejectionRates = _taskRejectionRates.toMap();
 
-        Map<K,Stats> stats = new HashMap<K,Stats>();
-        for (K key : _queues.keySet()) {
+        final Set<K> keys = _queues.keySet();
+        final Map<K,Stats> stats = new HashMap<K,Stats>(Stats.hashMapCapacity(keys.size()));
+
+        for (K key : keys) {
             stats.put(key,
                       new Stats(EnumSet.allOf(Stats.Metric.class),
                                 queue(key).objects.get(),
@@ -283,7 +284,6 @@ public class Pool<K,V> implements IPool<K,V> {
 
     private void startControlLoop(int duration, int iterations) {
 
-        double samplesPerSecond = 1000.0 / duration;
         int iteration = 0;
 
         try {
@@ -317,8 +317,8 @@ public class Pool<K,V> implements IPool<K,V> {
 
                 // update worker count
                 if (iteration == 0) {
-                    _stats = updateStats();
-                    Map<K,Integer> adjustment = _controller.adjustment(_stats);
+                    final Map<K,Stats> _stats = updateStats();
+                    final Map<K,Integer> adjustment = _controller.adjustment(_stats);
 
                     // clear out any unused queues
                     _lock.lock();
@@ -335,7 +335,7 @@ public class Pool<K,V> implements IPool<K,V> {
                     List<K> upward = new ArrayList<K>();
 
                     for (Map.Entry<K,Integer> entry : adjustment.entrySet()) {
-                        int n = entry.getValue().intValue();
+                        int n = entry.getValue();
                         if (n < 0) {
                             Queue q = queue(entry.getKey());
                             for (int i = 0; i < -n; i++) {
@@ -353,7 +353,6 @@ public class Pool<K,V> implements IPool<K,V> {
                     // a random subset
                     Collections.shuffle(upward);
                     for (K key : upward) {
-                        Queue q = queue(key);
                         addObject(key);
                     }
                 }

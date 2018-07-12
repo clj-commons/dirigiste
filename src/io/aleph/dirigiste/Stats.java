@@ -24,6 +24,23 @@ public class Stats {
 
     private static final int RESERVOIR_SIZE = 4096;
 
+    /**
+     * Compute HashMap capacity that allow a HashMap to keep expectedSize items without
+     * having to resize its internal data structure.
+     *
+     * This assumes that the default load factor (0.75) is used.
+     *
+     * @param expectedSize number of items to put in HashMap
+     * @return capacity
+     */
+    static int hashMapCapacity(int expectedSize) {
+        if (expectedSize < 3) {
+            return ++expectedSize;
+        } else {
+            return (int) ((float) expectedSize / 0.75F + 1.0F);
+        }
+    }
+
     public static class UniformLongReservoir {
 
         private final AtomicInteger _count = new AtomicInteger();
@@ -240,7 +257,7 @@ public class Stats {
     private final long[] _queueLatencies;
     private final long[] _taskLatencies;
 
-    public static Stats EMPTY = new Stats(EnumSet.noneOf(Metric.class), 0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
+    public static final Stats EMPTY = new Stats(EnumSet.noneOf(Metric.class), 0, new double[] {}, new double[] {}, new double[] {}, new double[] {}, new long[] {}, new long[] {}, new long[] {});
 
     public Stats(EnumSet<Metric> metrics, int numWorkers, double[] utilizations, double[] taskArrivalRates, double[] taskCompletionRates, double[] taskRejectionRates, long[] queueLengths, long[] queueLatencies, long[] taskLatencies) {
         _metrics = metrics;
