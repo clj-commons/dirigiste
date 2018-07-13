@@ -116,6 +116,10 @@ public class Stats {
             }
             return m;
         }
+
+        public void remove(K key) {
+            _reservoirs.remove(key);
+        }
     }
 
     public static class UniformDoubleReservoirMap<K> {
@@ -138,6 +142,10 @@ public class Stats {
                 m.put(k, _reservoirs.remove(k).toArray());
             }
             return m;
+        }
+
+        public void remove(K key) {
+            _reservoirs.remove(key);
         }
     }
 

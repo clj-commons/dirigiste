@@ -325,6 +325,15 @@ public class Pool<K,V> implements IPool<K,V> {
                         if (entry.getValue().getUtilization(1) == 0
                             && _queues.get(key).objects.get() == 0) {
                             _queues.remove(key).shutdown();
+
+                            // clean up stats so they don't remain in memory forever
+                            _queueLatencies.remove(key);
+                            _taskLatencies.remove(key);
+                            _queueLengths.remove(key);
+                            _utilizations.remove(key);
+                            _taskArrivalRates.remove(key);
+                            _taskCompletionRates.remove(key);
+                            _taskRejectionRates.remove(key);
                         }
                     }
                     _lock.unlock();
