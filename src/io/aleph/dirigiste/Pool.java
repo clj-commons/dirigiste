@@ -200,6 +200,7 @@ public class Pool<K,V> implements IPool<K,V> {
     private final int _maxQueueSize;
     private final Generator<K,V> _generator;
     private final Controller<K> _controller;
+    private final double _rateMultiplier;
 
     private boolean _isShutdown = false;
 
@@ -300,9 +301,9 @@ public class Pool<K,V> implements IPool<K,V> {
                     int objects = q.objects.get();
 
                     _queueLengths.sample(key, q.getQueueLength());
-                    _taskArrivalRates.sample(key, incoming);
-                    _taskCompletionRates.sample(key, completed);
-                    _taskRejectionRates.sample(key, rejected);
+                    _taskArrivalRates.sample(key, incoming * _rateMultiplier);
+                    _taskCompletionRates.sample(key, completed * _rateMultiplier);
+                    _taskRejectionRates.sample(key, rejected * _rateMultiplier);
 
                     int queueLength = q.getQueueLength();
                     double utilization = (double) (queueLength > 0 ? (objects + queueLength) : (incoming - completed)) / Math.max(1, objects);
@@ -380,6 +381,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
         final int duration = (int) unit.toMillis(samplePeriod);
         final int iterations = (int) (controlPeriod / samplePeriod);
+        _rateMultiplier = (double) unit.toMillis(1000) / duration;
 
         Thread t =
             new Thread(new Runnable() {
