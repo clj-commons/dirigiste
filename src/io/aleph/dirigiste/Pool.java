@@ -448,7 +448,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
         if (start != null) {
             _taskLatencies.sample(key, end - start.longValue());
-            queue(key).put(obj);
+            queue(key).release(obj);
         }
     }
 
