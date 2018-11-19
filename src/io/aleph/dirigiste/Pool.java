@@ -30,6 +30,10 @@ public class Pool<K,V> implements IPool<K,V> {
             return _takes.size();
         }
 
+        public int availableObjectsCount() {
+            return _puts.size();
+        }
+
         public void cancelTake(AcquireCallback<V> take) {
             _takes.remove(take);
         }
@@ -306,7 +310,8 @@ public class Pool<K,V> implements IPool<K,V> {
                     _taskRejectionRates.sample(key, rejected * _rateMultiplier);
 
                     int queueLength = q.getQueueLength();
-                    double utilization = (double) (queueLength > 0 ? (objects + queueLength) : (incoming - completed)) / Math.max(1, objects);
+                    int available = q.availableObjectsCount();
+                    double utilization = 1.0 - ((available - queueLength) / Math.max(1.0, objects));
                     _utilizations.sample(key, utilization);
                 }
 
