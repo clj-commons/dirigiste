@@ -9,7 +9,7 @@
   :dependencies []
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]]}}
   :java-source-paths ["src"]
-  :javac-options ["-target" "1.6" "-source" "1.6"]
+  :javac-options ["-target" "1.7" "-source" "1.7"]
 
   ;; Maven properties for the Maven God
   :scm {:url "git@github.com:ztellman/dirigiste.git"}
