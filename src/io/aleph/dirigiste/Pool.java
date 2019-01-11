@@ -303,14 +303,14 @@ public class Pool<K,V> implements IPool<K,V> {
                     long incoming = q.incoming.getAndSet(0);
                     long rejected = q.rejected.getAndSet(0);
                     int objects = q.objects.get();
+                    int queueLength = q.getQueueLength();
+                    int available = q.availableObjectsCount();
 
-                    _queueLengths.sample(key, q.getQueueLength());
+                    _queueLengths.sample(key, queueLength);
                     _taskArrivalRates.sample(key, incoming * _rateMultiplier);
                     _taskCompletionRates.sample(key, completed * _rateMultiplier);
                     _taskRejectionRates.sample(key, rejected * _rateMultiplier);
 
-                    int queueLength = q.getQueueLength();
-                    int available = q.availableObjectsCount();
                     double utilization = 1.0 - ((available - queueLength) / Math.max(1.0, objects));
                     _utilizations.sample(key, utilization);
                 }
