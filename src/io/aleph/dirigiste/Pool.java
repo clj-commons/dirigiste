@@ -10,7 +10,7 @@ public class Pool<K,V> implements IPool<K,V> {
     // pooled object queue
     class Queue {
 
-        private boolean _isShutdown = false;
+        private volatile boolean _isShutdown = false;
 
         private final Deque<AcquireCallback<V>> _takes;
         private final Deque<V> _puts = new LinkedBlockingDeque();
@@ -206,7 +206,7 @@ public class Pool<K,V> implements IPool<K,V> {
     private final Controller<K> _controller;
     private final double _rateMultiplier;
 
-    private boolean _isShutdown = false;
+    private volatile boolean _isShutdown = false;
 
     private final AtomicInteger _numObjects = new AtomicInteger(0);
     private final ReentrantLock _lock = new ReentrantLock();
