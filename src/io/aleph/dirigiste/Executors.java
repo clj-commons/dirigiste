@@ -4,15 +4,33 @@ import java.util.concurrent.*;
 import java.util.EnumSet;
 
 public class Executors {
+    public static boolean supportsVirtualThreads;
+
+    static {
+        try {
+            Class.forName("java.lang.Thread$Builder");
+            supportsVirtualThreads = true;
+        } catch (Exception e) {
+            supportsVirtualThreads = false;
+        }
+    }
 
     private static ThreadFactory threadFactory() {
-        return new ThreadFactory() {
-            public Thread newThread(Runnable r) {
-                Thread t = java.util.concurrent.Executors.defaultThreadFactory().newThread(r);
-                t.setDaemon(true);
-                return t;
-            }
-        };
+        return threadFactory(false);
+    }
+
+    private static ThreadFactory threadFactory(boolean usingVirtualThreads) {
+        if(usingVirtualThreads) {
+            return Thread.ofVirtual().factory();
+        } else {
+            return new ThreadFactory() {
+                public Thread newThread(Runnable r) {
+                    Thread t = java.util.concurrent.Executors.defaultThreadFactory().newThread(r);
+                    t.setDaemon(true);
+                    return t;
+                }
+            };
+        }
     }
 
     /**
@@ -88,4 +106,50 @@ public class Executors {
         };
     }
 
+    /**
+     * Creates an unbounded virtual thread executor. Does not keep statistics or adjust for utilization.
+     *
+     * This is a drop-in replacement for existing Dirigiste Executors, but if you don't need Dirigiste's
+     * thread management, you are better off using something like {@link java.util.concurrent.Executors#newVirtualThreadPerTaskExecutor()}
+     * directly, as there will be less overhead.
+     */
+    public static Executor virtualExecutor() throws UnsupportedOperationException {
+        return virtualExecutor(EnumSet.noneOf(Stats.Metric.class));
+    }
+
+    /**
+     * Creates an unbounded virtual thread executor. Keeps track of stats. Does not adjust for utilization.
+     *
+     * @param metrics  the metrics that will be gathered by the executor
+     */
+    public static Executor virtualExecutor(EnumSet<Stats.Metric> metrics) throws UnsupportedOperationException {
+        if(!supportsVirtualThreads)
+            throw new UnsupportedOperationException("Virtual threads not supported on this platform");
+        return new Executor(
+                threadFactory(true),
+                new SynchronousQueue(false),
+                unboundedController(),
+                1,
+                metrics,
+                25,
+                10000,
+                TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Return a controller that places no limits on number of threads, and never makes adjustments.
+     *
+     * Designed for virtual thread executors.
+     */
+    public static Executor.Controller unboundedController() {
+        return new Executor.Controller() {
+            public boolean shouldIncrement(int numWorkers) {
+                return true;
+            }
+
+            public int adjustment(Stats stats) {
+                return 0;
+            }
+        };
+    }
 }
