@@ -1,4 +1,4 @@
-(defproject org.clj-commons/dirigiste "1.1.0-SNAPSHOT"
+(defproject org.clj-commons/dirigiste "1.0.1"
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                                     :creds :gpg}
                         "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"
