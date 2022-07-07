@@ -1,3 +1,5 @@
+[![cljdoc badge](https://cljdoc.org/badge/io.aleph/dirigiste)](https://cljdoc.org/d/io.aleph/dirigiste)
+[![CircleCI](https://circleci.com/gh/clj-commons/dirigiste.svg?style=svg)](https://circleci.com/gh/clj-commons/dirigiste)
 ![](docs/cybersyn.jpg)
 
 (pronounced deer-eh-jeest)

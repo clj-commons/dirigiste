@@ -1,0 +1,11 @@
+== 1.0.1
+
+* Add CircleCI support
+* Convert to clj-commons group
+* Mark `_isShutdown` as volatile
+
+Contributions by vemv, Erik Assum, and Matthew Davidson
+
+== <1.0.0
+
+Built by Zach Tellman
