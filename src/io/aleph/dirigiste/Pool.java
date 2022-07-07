@@ -141,8 +141,8 @@ public class Pool<K,V> implements IPool<K,V> {
 
             int numObjects = objects.get();
 
-            for (V o : live) {
-                _puts.add(o);
+            if (! live.isEmpty()) {
+                _puts.addAll(live);
             }
 
             _lock.unlock();
