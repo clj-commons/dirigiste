@@ -16,12 +16,6 @@ public class Stats {
         UTILIZATION
     }
 
-    private static ThreadLocal<Random> _randoms = new ThreadLocal<Random>() {
-        protected Random initialValue() {
-            return new Random();
-        }
-    };
-
     private static final int RESERVOIR_SIZE = 4096;
 
     public static class UniformLongReservoir {
@@ -37,7 +31,7 @@ public class Stats {
             if (cnt <= RESERVOIR_SIZE) {
                 _values.set(cnt-1, n);
             } else {
-                int idx = _randoms.get().nextInt(cnt);
+                int idx = ThreadLocalRandom.current().nextInt(cnt);
                 if (idx < RESERVOIR_SIZE) {
                     _values.set(idx, n);
                 }
@@ -58,12 +52,6 @@ public class Stats {
     }
 
     public static class UniformDoubleReservoir {
-        private static ThreadLocal<Random> _randoms = new ThreadLocal<Random>() {
-            protected Random initialValue() {
-                return new Random();
-            }
-        };
-
         private final AtomicInteger _count = new AtomicInteger();
         private final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
 
@@ -75,7 +63,7 @@ public class Stats {
             if (cnt <= RESERVOIR_SIZE) {
                 _values.set(cnt-1, Double.doubleToLongBits(n));
             } else {
-                int idx = _randoms.get().nextInt(cnt);
+                int idx = ThreadLocalRandom.current().nextInt(cnt);
                 if (idx < RESERVOIR_SIZE) {
                     _values.set(idx, Double.doubleToLongBits(n));
                 }
