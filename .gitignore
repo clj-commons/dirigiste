@@ -13,3 +13,4 @@ pom.xml.asc
 push
 .DS_Store
 .java-version
+.clj-kondo/.cache/

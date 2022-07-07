@@ -1,4 +1,4 @@
-[![cljdoc badge](https://cljdoc.org/badge/io.aleph/dirigiste)](https://cljdoc.org/d/io.aleph/dirigiste)
+[![Clojars Project](https://img.shields.io/clojars/v/org.clj-commons/dirigiste.svg)](https://clojars.org/org.clj-commons/dirigiste)
 [![CircleCI](https://circleci.com/gh/clj-commons/dirigiste.svg?style=svg)](https://circleci.com/gh/clj-commons/dirigiste)
 ![](docs/cybersyn.jpg)
 
@@ -16,8 +16,8 @@ Full documentation can be found [here](http://ztellman.github.com/dirigiste/).
 
 In Leiningen:
 
-```clj
-[io.aleph/dirigiste "0.1.5"]
+```clojure
+[org.clj-commons/dirigiste "1.0.2"]
 ```
 
 In Maven:

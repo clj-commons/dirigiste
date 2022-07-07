@@ -1,3 +1,11 @@
+== 1.0.2
+
+* Switch to ThreadLocalRandom
+* Switch to `Collections.addAll()` in `cleanup`
+* Call `getQueueLength` only once in control loop
+
+Contributions by Reynald Borer
+
 == 1.0.1
 
 * Add CircleCI support
