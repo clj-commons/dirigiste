@@ -1,10 +1,10 @@
 (defproject org.clj-commons/dirigiste "1.0.1"
-  :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                                    :creds :gpg}
-                        "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/"
-                                     :creds :gpg}}
+  :deploy-repositories [["clojars" {:url "https://repo.clojars.org"
+                                    :username :env/clojars_username
+                                    :password :env/clojars_password
+                                    :sign-releases true}]]
   :url "https://github.com/clj-commons/dirigiste"
-  :description "Centrally planned thread and object pools"
+  :description "Centrally-planned thread and object pools"
   :license {:name "MIT License"}
   :dependencies []
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]]}}
