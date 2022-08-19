@@ -7,9 +7,13 @@
   :description "Centrally-planned thread and object pools"
   :license {:name "MIT License"}
   :dependencies []
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]]}}
-  :java-source-paths ["src"]
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]
+                                  [junit/junit "4.13"]]}
+             :test {:dependencies [[junit/junit "4.13"]]}}
+  :java-source-paths ["src" "test/java"]
   :javac-options ["-target" "1.8" "-source" "1.8"]
+  :plugins [[lein-junit "1.1.9"]]
+  :junit ["test/java"]
 
   ;; Maven properties for the Maven God
   :scm {:url "git@github.com:clj-commons/dirigiste.git"}

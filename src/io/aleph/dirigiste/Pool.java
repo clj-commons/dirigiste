@@ -13,7 +13,7 @@ public class Pool<K,V> implements IPool<K,V> {
         private volatile boolean _isShutdown = false;
 
         private final Deque<AcquireCallback<V>> _takes;
-        private final Deque<V> _puts = new LinkedBlockingDeque();
+        private final Deque<V> _puts = new LinkedBlockingDeque<>();
         private final K _key;
 
         final AtomicLong incoming = new AtomicLong(0);
@@ -23,7 +23,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
         public Queue(K key, int queueSize) {
             _key = key;
-            _takes = new LinkedBlockingDeque(queueSize);
+            _takes = new LinkedBlockingDeque<>(queueSize);
         }
 
         public int getQueueLength() {
@@ -84,11 +84,7 @@ public class Pool<K,V> implements IPool<K,V> {
             }
 
             try {
-                take(new AcquireCallback<V>() {
-                        public void handleObject(V obj) {
-                            destroy(obj);
-                        }
-                    }, true);
+                take(this::destroy, true);
             } catch (RejectedExecutionException e) {
                 throw new RuntimeException(e);
             } finally {
@@ -125,8 +121,8 @@ public class Pool<K,V> implements IPool<K,V> {
         public int cleanup() {
             _lock.lock();
 
-            List<V> live = new ArrayList<V>();
-            List<V> dead = new ArrayList<V>();
+            List<V> live = new ArrayList<>();
+            List<V> dead = new ArrayList<>();
             V obj = _puts.poll();
             while (obj != null) {
                 if (!_destroyedObjects.contains(obj)) {
@@ -210,9 +206,9 @@ public class Pool<K,V> implements IPool<K,V> {
 
     private final AtomicInteger _numObjects = new AtomicInteger(0);
     private final ReentrantLock _lock = new ReentrantLock();
-    private final Set<V> _destroyedObjects = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<V, Boolean>()));
+    private final Set<V> _destroyedObjects = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     private final ConcurrentHashMap<V,Long> _start = new ConcurrentHashMap<V,Long>();
-    private final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<K,Queue>();
+    final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<>();
 
     private final Stats.UniformLongReservoirMap<K> _queueLatencies = new Stats.UniformLongReservoirMap<K>();
     private final Stats.UniformLongReservoirMap<K> _taskLatencies = new Stats.UniformLongReservoirMap<K>();
@@ -227,11 +223,11 @@ public class Pool<K,V> implements IPool<K,V> {
     /**
      * Returns or creates the queue for the given key.
      */
-    private Queue queue(K key) {
+    Queue queue(K key) {
         Queue q = _queues.get(key);
         if (q == null) {
             q = new Queue(key, _maxQueueSize);
-            Queue prior = (Queue) _queues.putIfAbsent(key, q);
+            Queue prior = _queues.putIfAbsent(key, q);
             return prior == null ? q : prior;
         }
         return q;
@@ -285,6 +281,13 @@ public class Pool<K,V> implements IPool<K,V> {
         }
     }
 
+    double getUtilization(int available, int queueLength, int objects) {
+        if(objects==0 && queueLength==0) {
+            return 0;
+        }
+        return 1.0 - ((available - queueLength) / Math.max(1.0, objects));
+    }
+
     private void startControlLoop(int duration, int iterations) {
 
         int iteration = 0;
@@ -302,7 +305,6 @@ public class Pool<K,V> implements IPool<K,V> {
                     long completed = q.completed.getAndSet(0);
                     long incoming = q.incoming.getAndSet(0);
                     long rejected = q.rejected.getAndSet(0);
-                    int objects = q.objects.get();
                     int queueLength = q.getQueueLength();
                     int available = q.availableObjectsCount();
 
@@ -311,8 +313,12 @@ public class Pool<K,V> implements IPool<K,V> {
                     _taskCompletionRates.sample(key, completed * _rateMultiplier);
                     _taskRejectionRates.sample(key, rejected * _rateMultiplier);
 
-                    double utilization = 1.0 - ((available - queueLength) / Math.max(1.0, objects));
+                    // To ensure we'll compute the correct utilization, we need to lock to prevent
+                    // objects creation.
+                    _lock.lock();
+                    double utilization = getUtilization(available, q.getQueueLength(), q.objects.get());
                     _utilizations.sample(key, utilization);
+                    _lock.unlock();
                 }
 
                 if (_isShutdown) {
@@ -373,7 +379,7 @@ public class Pool<K,V> implements IPool<K,V> {
                 Thread.sleep(Math.max(0, duration - (System.currentTimeMillis() - start)));
             }
         } catch (InterruptedException e) {
-
+            // FIXME: What happens if it crashes?...
         }
     }
 
@@ -389,11 +395,7 @@ public class Pool<K,V> implements IPool<K,V> {
         _rateMultiplier = (double) unit.toMillis(1000) / duration;
 
         Thread t =
-            new Thread(new Runnable() {
-                    public void run() {
-                        startControlLoop(duration, iterations);
-                    }
-                },
+            new Thread(() -> startControlLoop(duration, iterations),
                 "dirigiste-pool-controller-" + _numPools.getAndIncrement());
         t.setDaemon(true);
         t.start();
@@ -406,19 +408,17 @@ public class Pool<K,V> implements IPool<K,V> {
     public void acquire(final K key, final AcquireCallback<V> callback) {
         final long start = System.nanoTime();
 
+        _lock.lock();
         Queue q = queue(key);
         AcquireCallback<V> wrapper =
-            new AcquireCallback<V>() {
-                    public void handleObject(V obj) {
+                obj -> {
+                    // do all the latency bookkeeping
+                    long acquire = System.nanoTime();
+                    _queueLatencies.sample(key, acquire - start);
+                    _start.put(obj, start);
 
-                        // do all the latency bookkeeping
-                        long acquire = System.nanoTime();
-                        _queueLatencies.sample(key, acquire - start);
-                        _start.put(obj, start);
-
-                        callback.handleObject(obj);
-                    }
-            };
+                    callback.handleObject(obj);
+                };
         boolean success = q.take(wrapper, false);
 
         // if we didn't immediately get an object, try to create one
@@ -430,6 +430,7 @@ public class Pool<K,V> implements IPool<K,V> {
                 throw new RuntimeException(e);
             }
         }
+        _lock.unlock();
     }
 
     @Override
@@ -437,12 +438,10 @@ public class Pool<K,V> implements IPool<K,V> {
         final AtomicReference<V> ref = new AtomicReference<V>(null);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        acquire(key, new AcquireCallback<V>() {
-                public void handleObject(V obj) {
-                    ref.set(obj);
-                    latch.countDown();
-                }
-            });
+        acquire(key, obj -> {
+            ref.set(obj);
+            latch.countDown();
+        });
 
         latch.await();
         return ref.get();
@@ -454,7 +453,7 @@ public class Pool<K,V> implements IPool<K,V> {
         Long start = _start.remove(obj);
 
         if (start != null) {
-            _taskLatencies.sample(key, end - start.longValue());
+            _taskLatencies.sample(key, end - start);
             queue(key).release(obj);
         }
     }
