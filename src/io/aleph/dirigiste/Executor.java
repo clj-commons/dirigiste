@@ -238,7 +238,9 @@ public class Executor extends AbstractExecutorService {
             if (remaining < 0) {
                 return false;
             }
-            w._latch.await(remaining, TimeUnit.MILLISECONDS);
+            if(!w._latch.await(remaining, TimeUnit.MILLISECONDS)) {
+                return false;
+            };
         }
 
         return true;
