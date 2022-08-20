@@ -296,8 +296,15 @@ public class Pool<K,V> implements IPool<K,V> {
             while (!_isShutdown) {
 
                 iteration = (iteration + 1) % iterations;
+                boolean isControlPeriod = iteration == 0;
 
                 long start = System.currentTimeMillis();
+
+                // During the control period, we need to ensure we have an exclusive access to the queues to ensure
+                // we compute a stable utilization and prevent objects creation.
+                if(isControlPeriod) {
+                    _lock.lock();
+                }
 
                 for (Map.Entry<K, Queue> entry : _queues.entrySet()) {
                     K key = entry.getKey();
@@ -305,6 +312,7 @@ public class Pool<K,V> implements IPool<K,V> {
                     long completed = q.completed.getAndSet(0);
                     long incoming = q.incoming.getAndSet(0);
                     long rejected = q.rejected.getAndSet(0);
+                    int objects = q.objects.get();
                     int queueLength = q.getQueueLength();
                     int available = q.availableObjectsCount();
 
@@ -313,12 +321,8 @@ public class Pool<K,V> implements IPool<K,V> {
                     _taskCompletionRates.sample(key, completed * _rateMultiplier);
                     _taskRejectionRates.sample(key, rejected * _rateMultiplier);
 
-                    // To ensure we'll compute the correct utilization, we need to lock to prevent
-                    // objects creation.
-                    _lock.lock();
-                    double utilization = getUtilization(available, q.getQueueLength(), q.objects.get());
+                    double utilization = getUtilization(available, queueLength, objects);
                     _utilizations.sample(key, utilization);
-                    _lock.unlock();
                 }
 
                 if (_isShutdown) {
@@ -326,12 +330,11 @@ public class Pool<K,V> implements IPool<K,V> {
                 }
 
                 // update worker count
-                if (iteration == 0) {
+                if (isControlPeriod) {
                     final Map<K,Stats> _stats = updateStats();
                     final Map<K,Integer> adjustment = _controller.adjustment(_stats);
 
                     // clear out any unused queues
-                    _lock.lock();
                     for (Map.Entry<K,Stats> entry : _stats.entrySet()) {
                         K key = entry.getKey();
                         if (entry.getValue().getUtilization(1) == 0
@@ -408,29 +411,34 @@ public class Pool<K,V> implements IPool<K,V> {
     public void acquire(final K key, final AcquireCallback<V> callback) {
         final long start = System.nanoTime();
 
-        _lock.lock();
-        Queue q = queue(key);
-        AcquireCallback<V> wrapper =
-                obj -> {
-                    // do all the latency bookkeeping
-                    long acquire = System.nanoTime();
-                    _queueLatencies.sample(key, acquire - start);
-                    _start.put(obj, start);
+        try {
+            // To prevent the queue from being deleted by the startControlLoop method (which runs on another thread) as
+            // soon as it has been created, we need to acquire an exclusive access on the queue.
+            _lock.lock();
+            Queue q = queue(key);
+            AcquireCallback<V> wrapper =
+                    obj -> {
+                        // do all the latency bookkeeping
+                        long acquire = System.nanoTime();
+                        _queueLatencies.sample(key, acquire - start);
+                        _start.put(obj, start);
 
-                    callback.handleObject(obj);
-                };
-        boolean success = q.take(wrapper, false);
+                        callback.handleObject(obj);
+                    };
+            boolean success = q.take(wrapper, false);
 
-        // if we didn't immediately get an object, try to create one
-        if (!success) {
-            try {
-                addObject(key);
-            } catch (Throwable e) {
-                q.cancelTake(wrapper);
-                throw new RuntimeException(e);
+            // if we didn't immediately get an object, try to create one
+            if (!success) {
+                try {
+                    addObject(key);
+                } catch (Throwable e) {
+                    q.cancelTake(wrapper);
+                    throw new RuntimeException(e);
+                }
             }
+        } finally {
+            _lock.unlock();
         }
-        _lock.unlock();
     }
 
     @Override
