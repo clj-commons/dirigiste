@@ -382,7 +382,9 @@ public class Pool<K,V> implements IPool<K,V> {
                 Thread.sleep(Math.max(0, duration - (System.currentTimeMillis() - start)));
             }
         } catch (InterruptedException e) {
-            // FIXME: What happens if it crashes?...
+            if(_lock.isHeldByCurrentThread()) {
+                _lock.unlock();
+            }
         }
     }
 
