@@ -300,8 +300,9 @@ public class Pool<K,V> implements IPool<K,V> {
 
                 long start = System.currentTimeMillis();
 
-                // During the control period, we need to ensure we have an exclusive access to the queues to ensure
-                // we compute a stable utilization and prevent objects creation.
+                // During the control period, we need have an exclusive access to the queues to ensure we compute a
+                // stable utilization and prevent objects creation.
+                // Otherwise, we might decide to destroy the queue while creating an object on it.
                 if(isControlPeriod) {
                     _lock.lock();
                 }
