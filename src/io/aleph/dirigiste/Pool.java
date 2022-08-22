@@ -242,7 +242,7 @@ public class Pool<K,V> implements IPool<K,V> {
         Map<K,double[]> taskCompletionRates = _taskCompletionRates.toMap();
         Map<K,double[]> taskRejectionRates = _taskRejectionRates.toMap();
 
-        Map<K,Stats> stats = new HashMap<K,Stats>();
+        Map<K,Stats> stats = new HashMap<>();
         for (K key : _queues.keySet()) {
             stats.put(key,
                       new Stats(EnumSet.allOf(Stats.Metric.class),
@@ -281,11 +281,100 @@ public class Pool<K,V> implements IPool<K,V> {
         }
     }
 
+    /**
+     * Returns the utilization according to the state of a queue.
+     * @param available Number of objects available on the queue waiting for being used
+     * @param queueLength Number of pending takes waiting to have access to an object
+     * @param objects Number of objects created on the queue
+     * @return The queue utilization:
+     * - <b>0</b> means all the objects are available and there is no pending takes
+     * - <b>1</b> means all the objects are in use (0 available)
+     * - <b>>1</b> means all the objects are in use (0 available) and there are pending takes
+     */
     double getUtilization(int available, int queueLength, int objects) {
         if(objects==0 && queueLength==0) {
             return 0;
         }
         return 1.0 - ((available - queueLength) / Math.max(1.0, objects));
+    }
+
+    /**
+     * Adjust the various queues according to {@link io.aleph.dirigiste.IPool.Controller#adjustment(java.util.Map)}.
+     * Queues no longer in use are removed from the queues and shutdown.
+     */
+    private void adjust() {
+        final Map<K,Stats> _stats = updateStats();
+        final Map<K,Integer> adjustment = _controller.adjustment(_stats);
+
+        // clear out any unused queues
+        for (Map.Entry<K,Stats> entry : _stats.entrySet()) {
+            K key = entry.getKey();
+            if (entry.getValue().getUtilization(1) == 0
+                    && _queues.get(key).objects.get() == 0) {
+                _queues.remove(key).shutdown();
+
+                // clean up stats so they don't remain in memory forever
+                _queueLatencies.remove(key);
+                _taskLatencies.remove(key);
+                _queueLengths.remove(key);
+                _utilizations.remove(key);
+                _taskArrivalRates.remove(key);
+                _taskCompletionRates.remove(key);
+                _taskRejectionRates.remove(key);
+            }
+        }
+
+        // defer pool growth until we've reduced other pools
+        List<K> upward = new ArrayList<K>();
+
+        for (Map.Entry<K,Integer> entry : adjustment.entrySet()) {
+            int n = entry.getValue();
+            if (n < 0) {
+                Queue q = queue(entry.getKey());
+                for (int i = 0; i < -n; i++) {
+                    q.drop();
+                }
+                q.cleanup();
+            } else if (n > 1) {
+                for (int i = 0; i < n; i++) {
+                    upward.add(entry.getKey());
+                }
+            }
+        }
+
+        // if we don't have room for everything, make sure we grow
+        // a random subset
+        Collections.shuffle(upward);
+        for (K key : upward) {
+            addObject(key);
+        }
+    }
+
+    /**
+     * Sample all the queues to compute their current:
+     * - queueLength (pending takes)
+     * - utilization
+     * - taskArrivalRate
+     * - taskCompletionRate
+     * - taskRejectionRate
+     */
+    private void sample() {
+        for (Map.Entry<K, Queue> entry : _queues.entrySet()) {
+            K key = entry.getKey();
+            Queue q = entry.getValue();
+            long completed = q.completed.getAndSet(0);
+            long incoming = q.incoming.getAndSet(0);
+            long rejected = q.rejected.getAndSet(0);
+            int objects = q.objects.get();
+            int queueLength = q.getQueueLength();
+            int available = q.availableObjectsCount();
+            double utilization = getUtilization(available, queueLength, objects);
+
+            _queueLengths.sample(key, queueLength);
+            _utilizations.sample(key, utilization);
+            _taskArrivalRates.sample(key, incoming * _rateMultiplier);
+            _taskCompletionRates.sample(key, completed * _rateMultiplier);
+            _taskRejectionRates.sample(key, rejected * _rateMultiplier); }
     }
 
     private void startControlLoop(int duration, int iterations) {
@@ -304,79 +393,20 @@ public class Pool<K,V> implements IPool<K,V> {
                 // stable utilization and prevent objects creation.
                 // Otherwise, we might decide to destroy the queue while creating an object on it.
                 if(isControlPeriod) {
-                    _lock.lock();
-                }
-
-                for (Map.Entry<K, Queue> entry : _queues.entrySet()) {
-                    K key = entry.getKey();
-                    Queue q = entry.getValue();
-                    long completed = q.completed.getAndSet(0);
-                    long incoming = q.incoming.getAndSet(0);
-                    long rejected = q.rejected.getAndSet(0);
-                    int objects = q.objects.get();
-                    int queueLength = q.getQueueLength();
-                    int available = q.availableObjectsCount();
-
-                    _queueLengths.sample(key, queueLength);
-                    _taskArrivalRates.sample(key, incoming * _rateMultiplier);
-                    _taskCompletionRates.sample(key, completed * _rateMultiplier);
-                    _taskRejectionRates.sample(key, rejected * _rateMultiplier);
-
-                    double utilization = getUtilization(available, queueLength, objects);
-                    _utilizations.sample(key, utilization);
-                }
-
-                if (_isShutdown) {
-                    break;
-                }
-
-                // update worker count
-                if (isControlPeriod) {
-                    final Map<K,Stats> _stats = updateStats();
-                    final Map<K,Integer> adjustment = _controller.adjustment(_stats);
-
-                    // clear out any unused queues
-                    for (Map.Entry<K,Stats> entry : _stats.entrySet()) {
-                        K key = entry.getKey();
-                        if (entry.getValue().getUtilization(1) == 0
-                            && _queues.get(key).objects.get() == 0) {
-                            _queues.remove(key).shutdown();
-
-                            // clean up stats so they don't remain in memory forever
-                            _queueLatencies.remove(key);
-                            _taskLatencies.remove(key);
-                            _queueLengths.remove(key);
-                            _utilizations.remove(key);
-                            _taskArrivalRates.remove(key);
-                            _taskCompletionRates.remove(key);
-                            _taskRejectionRates.remove(key);
+                    try {
+                        _lock.lock();
+                        sample();
+                        if (_isShutdown) {
+                            break;
                         }
+                        adjust();
+                    } finally {
+                        _lock.unlock();
                     }
-                    _lock.unlock();
-
-                    // defer pool growth until we've reduced other pools
-                    List<K> upward = new ArrayList<K>();
-
-                    for (Map.Entry<K,Integer> entry : adjustment.entrySet()) {
-                        int n = entry.getValue();
-                        if (n < 0) {
-                            Queue q = queue(entry.getKey());
-                            for (int i = 0; i < -n; i++) {
-                                q.drop();
-                            }
-                            q.cleanup();
-                        } else if (n > 1) {
-                            for (int i = 0; i < n; i++) {
-                                upward.add(entry.getKey());
-                            }
-                        }
-                    }
-
-                    // if we don't have room for everything, make sure we grow
-                    // a random subset
-                    Collections.shuffle(upward);
-                    for (K key : upward) {
-                        addObject(key);
+                } else {
+                    sample();
+                    if (_isShutdown) {
+                        break;
                     }
                 }
 
