@@ -6,12 +6,19 @@ import static java.util.stream.Collectors.toMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class PoolTest {
 
@@ -114,21 +121,23 @@ public class PoolTest {
     }
 
     @Test
-    public void testFullPoolWithTwoAcquire() {
+    public void testFullPoolWithTwoAcquire() throws InterruptedException {
         Pool<Key,Value> pool = newPool(fullController());
         pool.acquire(KEY, __ -> {});
         pool.acquire(KEY, __ -> {});
+        Thread.sleep(200);
         assertEquals(0, pool.queue(KEY).availableObjectsCount());
         assertEquals(0, pool.queue(KEY).objects.get());
         assertEquals(3, getUtilization(pool), 0);
     }
 
     @Test
-    public void testFullPoolWithThreeAcquire() {
+    public void testFullPoolWithThreeAcquire() throws InterruptedException {
         Pool<Key,Value> pool = newPool(fullController());
         pool.acquire(KEY, __ -> {});
         pool.acquire(KEY, __ -> {});
         pool.acquire(KEY, __ -> {});
+        Thread.sleep(200);
         assertEquals(0, pool.queue(KEY).availableObjectsCount());
         assertEquals(0, pool.queue(KEY).objects.get());
         assertEquals(4, getUtilization(pool), 0);
@@ -212,6 +221,44 @@ public class PoolTest {
         // Wait for the controlPeriod
         Thread.sleep(300);
         assertNull(pool._queues.get(KEY));
+    }
+
+    @Test
+    public void testPoolOnAConcurrentEnvironment() {
+        ExecutorService executorService = Executors.newFixedThreadPool(30);
+        Pool<Key,Value> pool = newPool(utilizationController());
+
+        List<Future<Boolean>> futures = IntStream.range(0, 1000).mapToObj(__ -> executorService.submit(() -> {
+            try {
+                Value val = pool.acquire(KEY);
+                pool.dispose(KEY, val);
+                return true;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        })).collect(Collectors.toList());
+
+        assertTrue(futures.stream().allMatch(f -> {
+            try {
+                return f.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
+    }
+
+    @Test
+    public void testPoolAcquireReleaseMultipleTimes() {
+        Pool<Key,Value> pool = newPool(utilizationController());
+        assertTrue(IntStream.range(0, 10000).mapToObj(i -> {
+            try {
+                Value val = pool.acquire(KEY);
+                pool.dispose(KEY, val);
+                return true;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }).allMatch(v -> v));
     }
 
     private Pool<Key, Value> newPool() {
