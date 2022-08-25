@@ -304,16 +304,19 @@ public class Pool<K,V> implements IPool<K,V> {
      * Queues no longer in use are removed from the queues and shutdown.
      */
     private void adjust() {
+        // The stats need to be accurate at that point to ensure we are not removing a queue
+        // that might be in use. We need to perform a sampling while having the exclusive lock.
+        _lock.lock();
+        sample();
         final Map<K,Stats> _stats = updateStats();
         final Map<K,Integer> adjustment = _controller.adjustment(_stats);
 
         // clear out any unused queues
-        _lock.lock();
         for (Map.Entry<K,Stats> entry : _stats.entrySet()) {
             K key = entry.getKey();
             if (entry.getValue().getUtilization(1) == 0
                     && _queues.get(key).objects.get() == 0
-                    && _lockedQueues.get(entry.getKey()) == 0) {
+                    && _lockedQueues.getOrDefault(key, 0) == 0) {
                 _queues.remove(key).shutdown();
                 _lockedQueues.remove(key);
 
@@ -394,7 +397,9 @@ public class Pool<K,V> implements IPool<K,V> {
 
                 long start = System.currentTimeMillis();
 
-                sample();
+                if(!isControlPeriod) {
+                    sample();
+                }
 
                 if (_isShutdown) {
                     break;
@@ -407,7 +412,6 @@ public class Pool<K,V> implements IPool<K,V> {
                 Thread.sleep(Math.max(0, duration - (System.currentTimeMillis() - start)));
             }
         } catch (InterruptedException e) {
-
         }
     }
 
