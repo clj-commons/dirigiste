@@ -50,6 +50,7 @@ public class PoolTest {
         pool.acquire(KEY);
         pool.acquire(KEY);
         pool.acquire(KEY);
+        Thread.sleep(500);
         assertEquals(0, pool.queue(KEY).availableObjectsCount());
         assertEquals(3, pool.queue(KEY).objects.get());
         assertEquals(1, getUtilization(pool), 0);
@@ -133,14 +134,18 @@ public class PoolTest {
 
     @Test
     public void testFullPoolWithThreeAcquire() throws InterruptedException {
-        Pool<Key,Value> pool = newPool(fullController());
-        pool.acquire(KEY, __ -> {});
-        pool.acquire(KEY, __ -> {});
-        pool.acquire(KEY, __ -> {});
-        Thread.sleep(200);
-        assertEquals(0, pool.queue(KEY).availableObjectsCount());
-        assertEquals(0, pool.queue(KEY).objects.get());
-        assertEquals(4, getUtilization(pool), 0);
+        // This test is performed multiple times as it detected some race conditions
+        // to ensure the queues are not removed while in use.
+        for(int i=0;i<100;i++) {
+            Pool<Key, Value> pool = newPool(fullController());
+            pool.acquire(KEY, __ -> {});
+            pool.acquire(KEY, __ -> {});
+            pool.acquire(KEY, __ -> {});
+            Thread.sleep(50);
+            assertEquals(0, pool.queue(KEY).availableObjectsCount());
+            assertEquals(0, pool.queue(KEY).objects.get());
+            assertEquals(4, getUtilization(pool), 0);
+        }
     }
 
     @Test
@@ -224,7 +229,7 @@ public class PoolTest {
     }
 
     @Test
-    public void testPoolOnAConcurrentEnvironment() {
+    public void testPoolOnAConcurrentEnvironment() throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(30);
         Pool<Key,Value> pool = newPool(utilizationController());
 
@@ -245,6 +250,20 @@ public class PoolTest {
                 throw new RuntimeException(e);
             }
         }));
+
+        int available = pool.queue(KEY).availableObjectsCount();
+        int objects = pool.queue(KEY).objects.get();
+        double utilization = getUtilization(pool);
+
+        // We should have between 0 and 1000 objects whether they haven't
+        // be destroyed yet
+        assertTrue(available >= 0 && available <= 1000);
+        assertTrue(objects >= 0 && objects <= 1000);
+        assertTrue(utilization >= 0 && utilization <= 1);
+
+        // Wait for the controlPeriod
+        Thread.sleep(300);
+        assertNull(pool._queues.get(KEY));
     }
 
     @Test
