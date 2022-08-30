@@ -16,12 +16,12 @@ public class Stats {
         UTILIZATION
     }
 
-    private static final int RESERVOIR_SIZE = 4096;
+    static final int RESERVOIR_SIZE = 4096;
 
     public static class UniformLongReservoir {
 
         private final AtomicInteger _count = new AtomicInteger();
-        private final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
+        final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
 
         UniformLongReservoir() {
         }
@@ -53,7 +53,7 @@ public class Stats {
 
     public static class UniformDoubleReservoir {
         private final AtomicInteger _count = new AtomicInteger();
-        private final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
+        final AtomicLongArray _values = new AtomicLongArray(RESERVOIR_SIZE);
 
         UniformDoubleReservoir() {
         }
@@ -98,7 +98,7 @@ public class Stats {
         }
 
         public Map<K,long[]> toMap() {
-            Map<K,long[]> m = new HashMap<K,long[]>();
+            Map<K,long[]> m = new HashMap<>();
             for (K k : _reservoirs.keySet()) {
                 m.put(k, _reservoirs.put(k, new UniformLongReservoir()).toArray());
             }
@@ -125,7 +125,7 @@ public class Stats {
         }
 
         public Map<K,double[]> toMap() {
-            Map<K,double[]> m = new HashMap<K,double[]>();
+            Map<K,double[]> m = new HashMap<>();
             for (K k : _reservoirs.keySet()) {
                 m.put(k, _reservoirs.remove(k).toArray());
             }
@@ -188,10 +188,10 @@ public class Stats {
         case 0:
             return 0.0;
         case 1:
-            return (double) vals[0];
+            return vals[0];
         default:
             if (t == 1.0) {
-                return (double) vals[cnt-1];
+                return vals[cnt-1];
             }
             double idx = (cnt-1) * t;
             int iidx = (int) idx;
@@ -205,8 +205,8 @@ public class Stats {
         }
 
         double sum = 0;
-        for (int i = 0; i < vals.length; i++) {
-            sum += vals[i];
+        for (double val : vals) {
+            sum += val;
         }
         return sum/vals.length;
     }
@@ -217,8 +217,8 @@ public class Stats {
         }
 
         long sum = 0;
-        for (int i = 0; i < vals.length; i++) {
-            sum += vals[i];
+        for (long val : vals) {
+            sum += val;
         }
         return sum/vals.length;
     }
