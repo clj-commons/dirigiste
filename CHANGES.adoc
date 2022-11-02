@@ -1,3 +1,9 @@
+== 1.0.3
+
+* Fix `awaitTermination` bug where timing out didn't return `false`
+* Ensure Pool queues are properly removed
+* Fixed javadoc link
+
 == 1.0.2
 
 * Switch to ThreadLocalRandom
