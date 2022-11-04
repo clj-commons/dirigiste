@@ -209,8 +209,7 @@ public class Pool<K,V> implements IPool<K,V> {
     private final Set<V> _destroyedObjects = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     private final ConcurrentHashMap<V,Long> _start = new ConcurrentHashMap<V,Long>();
     final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap.KeySetView<K, Boolean> _lockedQueues = ConcurrentHashMap.newKeySet();
-
+    private final ConcurrentHashMap<K, Integer> _lockedQueues = new ConcurrentHashMap<>();
     private final Stats.UniformLongReservoirMap<K> _queueLatencies = new Stats.UniformLongReservoirMap<K>();
     private final Stats.UniformLongReservoirMap<K> _taskLatencies = new Stats.UniformLongReservoirMap<K>();
     private final Stats.UniformLongReservoirMap<K> _queueLengths = new Stats.UniformLongReservoirMap<K>();
@@ -260,9 +259,8 @@ public class Pool<K,V> implements IPool<K,V> {
     }
 
     private void addObject(K key) {
-        Queue q = queue(key);
-
         _lock.lock();
+        Queue q = queue(key);
         if (_controller.shouldIncrement(key, q.objects.get(), _numObjects.get())) {
 
             // get all of our numbers aligned before unlocking
@@ -316,7 +314,7 @@ public class Pool<K,V> implements IPool<K,V> {
             K key = entry.getKey();
             if (entry.getValue().getUtilization(1) == 0
                     && _queues.get(key).objects.get() == 0
-                    && !_lockedQueues.contains(key)) {
+                    && _lockedQueues.getOrDefault(key, 0) == 0) {
                 _queues.remove(key).shutdown();
                 _lockedQueues.remove(key);
 
@@ -444,7 +442,7 @@ public class Pool<K,V> implements IPool<K,V> {
             // To prevent the queue from being deleted by the startControlLoop method (which runs on another thread) as
             // soon as it has been created, we need to mark the Queue as in use after acquired the exclusive lock.
             _lock.lock();
-            _lockedQueues.add(key);
+            _lockedQueues.compute(key, (__, v) -> v == null ? 1 : v + 1);
             _lock.unlock();
 
             Queue q = queue(key);
@@ -469,7 +467,8 @@ public class Pool<K,V> implements IPool<K,V> {
                 }
             }
         } finally {
-            _lockedQueues.remove(key);
+            // This call is safe, there is no reason the key wont be present on the locked queues at this point.
+            _lockedQueues.compute(key, (__, v) -> v - 1);
         }
     }
 
