@@ -259,8 +259,9 @@ public class Pool<K,V> implements IPool<K,V> {
     }
 
     private void addObject(K key) {
-        _lock.lock();
         Queue q = queue(key);
+
+        _lock.lock();
         if (_controller.shouldIncrement(key, q.objects.get(), _numObjects.get())) {
 
             // get all of our numbers aligned before unlocking
@@ -439,8 +440,9 @@ public class Pool<K,V> implements IPool<K,V> {
         final long start = System.nanoTime();
 
         try {
-            // To prevent the queue from being deleted by the startControlLoop method (which runs on another thread) as
-            // soon as it has been created, we need to mark the Queue as in use after acquired the exclusive lock.
+            // To prevent the queue from being deleted by the startControlLoop method (which runs on
+            // another thread) as soon as it has been created, we need to mark the Queue as in use
+            // after acquired the exclusive lock.
             _lock.lock();
             _lockedQueues.compute(key, (__, v) -> v == null ? 1 : v + 1);
             _lock.unlock();
@@ -467,7 +469,8 @@ public class Pool<K,V> implements IPool<K,V> {
                 }
             }
         } finally {
-            // This call is safe, there is no reason the key wont be present on the locked queues at this point.
+            // This call is safe, there is no reason the key won't be present on the locked queues
+            // at this point.
             _lockedQueues.compute(key, (__, v) -> v - 1);
         }
     }
@@ -515,7 +518,21 @@ public class Pool<K,V> implements IPool<K,V> {
         }
 
         if (pendingTakes > 0) {
-            addObject(key);
+            try {
+                // To prevent the queue from being deleted by the startControlLoop method (which runs
+                // on another thread) as soon as it has been created, we need to mark the Queue
+                // as in use after acquired the exclusive lock.
+                _lock.lock();
+                _lockedQueues.compute(key, (__, v) -> v == null ? 1 : v + 1);
+                _lock.unlock();
+                // Objects can be created when there are pending takes. Under this circumstance, a
+                // new object has to be created to replace the one that just got disposed.
+                addObject(key);
+            } finally {
+                // This call is safe, there is no reason the key won't be present on the locked
+                // queues at this point.
+                _lockedQueues.compute(key, (__, v) -> v - 1);
+            }
         }
     }
 
