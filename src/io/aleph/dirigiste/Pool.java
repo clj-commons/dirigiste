@@ -316,17 +316,24 @@ public class Pool<K,V> implements IPool<K,V> {
             if (entry.getValue().getUtilization(1) == 0
                     && _queues.get(key).objects.get() == 0
                     && _queueLockCount.getOrDefault(key, 0) == 0) {
-                _queues.remove(key).shutdown();
-                _queueLockCount.remove(key);
 
-                // clean up stats so they don't remain in memory forever
-                _queueLatencies.remove(key);
-                _taskLatencies.remove(key);
-                _queueLengths.remove(key);
-                _utilizations.remove(key);
-                _taskArrivalRates.remove(key);
-                _taskCompletionRates.remove(key);
-                _taskRejectionRates.remove(key);
+                // Ensure we have an exclusive lock on the queue before it got shut down.
+                _queueLockCount.compute(key, (__, useCount) -> {
+                    if(useCount == null || useCount == 0) {
+                        _queues.remove(key).shutdown();
+
+                        // clean up stats so they don't remain in memory forever
+                        _queueLatencies.remove(key);
+                        _taskLatencies.remove(key);
+                        _queueLengths.remove(key);
+                        _utilizations.remove(key);
+                        _taskArrivalRates.remove(key);
+                        _taskCompletionRates.remove(key);
+                        _taskRejectionRates.remove(key);
+                        return null;
+                    }
+                    return useCount;
+                });
             }
         }
         _lock.unlock();
@@ -441,11 +448,8 @@ public class Pool<K,V> implements IPool<K,V> {
 
         try {
             // To prevent the queue from being deleted by the startControlLoop method (which runs on
-            // another thread) as soon as it has been created, we need to mark the Queue as in use
-            // after acquired the exclusive lock.
-            _lock.lock();
+            // another thread) as soon as it has been created, we need to mark the Queue as in use.
             _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
-            _lock.unlock();
 
             Queue q = queue(key);
             AcquireCallback<V> wrapper =
@@ -521,10 +525,8 @@ public class Pool<K,V> implements IPool<K,V> {
             try {
                 // To prevent the queue from being deleted by the startControlLoop method (which runs
                 // on another thread) as soon as it has been created, we need to mark the Queue
-                // as in use after acquired the exclusive lock.
-                _lock.lock();
+                // as in use.
                 _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
-                _lock.unlock();
                 // Objects can be created when there are pending takes. Under this circumstance, a
                 // new object has to be created to replace the one that just got disposed.
                 addObject(key);
