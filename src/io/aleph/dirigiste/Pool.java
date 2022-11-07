@@ -209,7 +209,7 @@ public class Pool<K,V> implements IPool<K,V> {
     private final Set<V> _destroyedObjects = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     private final ConcurrentHashMap<V,Long> _start = new ConcurrentHashMap<V,Long>();
     final ConcurrentHashMap<K,Queue> _queues = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<K, Integer> _lockedQueues = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<K, Integer> _queueLockCount = new ConcurrentHashMap<>();
     private final Stats.UniformLongReservoirMap<K> _queueLatencies = new Stats.UniformLongReservoirMap<K>();
     private final Stats.UniformLongReservoirMap<K> _taskLatencies = new Stats.UniformLongReservoirMap<K>();
     private final Stats.UniformLongReservoirMap<K> _queueLengths = new Stats.UniformLongReservoirMap<K>();
@@ -315,9 +315,9 @@ public class Pool<K,V> implements IPool<K,V> {
             K key = entry.getKey();
             if (entry.getValue().getUtilization(1) == 0
                     && _queues.get(key).objects.get() == 0
-                    && _lockedQueues.getOrDefault(key, 0) == 0) {
+                    && _queueLockCount.getOrDefault(key, 0) == 0) {
                 _queues.remove(key).shutdown();
-                _lockedQueues.remove(key);
+                _queueLockCount.remove(key);
 
                 // clean up stats so they don't remain in memory forever
                 _queueLatencies.remove(key);
@@ -444,7 +444,7 @@ public class Pool<K,V> implements IPool<K,V> {
             // another thread) as soon as it has been created, we need to mark the Queue as in use
             // after acquired the exclusive lock.
             _lock.lock();
-            _lockedQueues.compute(key, (__, v) -> v == null ? 1 : v + 1);
+            _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
             _lock.unlock();
 
             Queue q = queue(key);
@@ -471,7 +471,7 @@ public class Pool<K,V> implements IPool<K,V> {
         } finally {
             // This call is safe, there is no reason the key won't be present on the locked queues
             // at this point.
-            _lockedQueues.compute(key, (__, v) -> v - 1);
+            _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
         }
     }
 
@@ -523,7 +523,7 @@ public class Pool<K,V> implements IPool<K,V> {
                 // on another thread) as soon as it has been created, we need to mark the Queue
                 // as in use after acquired the exclusive lock.
                 _lock.lock();
-                _lockedQueues.compute(key, (__, v) -> v == null ? 1 : v + 1);
+                _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
                 _lock.unlock();
                 // Objects can be created when there are pending takes. Under this circumstance, a
                 // new object has to be created to replace the one that just got disposed.
@@ -531,7 +531,7 @@ public class Pool<K,V> implements IPool<K,V> {
             } finally {
                 // This call is safe, there is no reason the key won't be present on the locked
                 // queues at this point.
-                _lockedQueues.compute(key, (__, v) -> v - 1);
+                _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
             }
         }
     }
