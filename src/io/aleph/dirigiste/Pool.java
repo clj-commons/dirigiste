@@ -303,10 +303,8 @@ public class Pool<K,V> implements IPool<K,V> {
      * Queues no longer in use are removed from the queues and shutdown.
      */
     private void adjust() {
-        // The stats need to be accurate at that point to ensure we are not removing a queue
-        // that might be in use. We need to perform a sampling while having the exclusive lock.
-        _lock.lock();
         sample();
+
         final Map<K,Stats> _stats = updateStats();
         final Map<K,Integer> adjustment = _controller.adjustment(_stats);
 
@@ -336,7 +334,6 @@ public class Pool<K,V> implements IPool<K,V> {
                 });
             }
         }
-        _lock.unlock();
 
         // defer pool growth until we've reduced other pools
         List<K> upward = new ArrayList<K>();
@@ -358,6 +355,7 @@ public class Pool<K,V> implements IPool<K,V> {
 
         // if we don't have room for everything, make sure we grow
         // a random subset
+
         Collections.shuffle(upward);
         for (K key : upward) {
             addObject(key);
@@ -446,36 +444,31 @@ public class Pool<K,V> implements IPool<K,V> {
     public void acquire(final K key, final AcquireCallback<V> callback) {
         final long start = System.nanoTime();
 
-        try {
-            // To prevent the queue from being deleted by the startControlLoop method (which runs on
-            // another thread) as soon as it has been created, we need to mark the Queue as in use.
-            _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
+        // To prevent the queue from being deleted by the startControlLoop method (which runs on
+        // another thread) as soon as it has been created, we need to mark the Queue as in use.
+        _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
 
-            Queue q = queue(key);
-            AcquireCallback<V> wrapper =
-                    obj -> {
-                        // do all the latency bookkeeping
-                        long acquire = System.nanoTime();
-                        _queueLatencies.sample(key, acquire - start);
-                        _start.put(obj, start);
+        Queue q = queue(key);
+        AcquireCallback<V> wrapper =
+                obj -> {
+                    // do all the latency bookkeeping
+                    long acquire = System.nanoTime();
+                    _queueLatencies.sample(key, acquire - start);
+                    _start.put(obj, start);
 
-                        callback.handleObject(obj);
-                    };
-            boolean success = q.take(wrapper, false);
+                    callback.handleObject(obj);
+                };
+        boolean success = q.take(wrapper, false);
 
-            // if we didn't immediately get an object, try to create one
-            if (!success) {
-                try {
-                    addObject(key);
-                } catch (Throwable e) {
-                    q.cancelTake(wrapper);
-                    throw new RuntimeException(e);
-                }
+        // if we didn't immediately get an object, try to create one
+        if (!success) {
+            try {
+                addObject(key);
+            } catch (Throwable e) {
+                q.cancelTake(wrapper);
+                _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
+                throw new RuntimeException(e);
             }
-        } finally {
-            // This call is safe, there is no reason the key won't be present on the locked queues
-            // at this point.
-            _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
         }
     }
 
@@ -501,6 +494,7 @@ public class Pool<K,V> implements IPool<K,V> {
         if (start != null) {
             _taskLatencies.sample(key, end - start);
             queue(key).release(obj);
+            _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
         }
     }
 
@@ -522,20 +516,12 @@ public class Pool<K,V> implements IPool<K,V> {
         }
 
         if (pendingTakes > 0) {
-            try {
-                // To prevent the queue from being deleted by the startControlLoop method (which runs
-                // on another thread) as soon as it has been created, we need to mark the Queue
-                // as in use.
-                _queueLockCount.compute(key, (__, useCount) -> useCount == null ? 1 : useCount + 1);
-                // Objects can be created when there are pending takes. Under this circumstance, a
-                // new object has to be created to replace the one that just got disposed.
-                addObject(key);
-            } finally {
-                // This call is safe, there is no reason the key won't be present on the locked
-                // queues at this point.
-                _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
-            }
+            // Objects can be created when there are pending takes. Under this circumstance, a
+            // new object has to be created to replace the one that just got disposed.
+            addObject(key);
         }
+
+        _queueLockCount.compute(key, (__, useCount) -> useCount - 1);
     }
 
     @Override

@@ -188,15 +188,6 @@ public class PoolTest {
     }
 
     @Test
-    public void testPoolAcquireOnShutdown() throws InterruptedException {
-        Pool<Key,Value> pool = newPool(noopController());
-        Value val = pool.acquire(KEY);
-        pool.release(KEY, val);
-        pool.shutdown();
-        assertThrows(Exception.class, () -> pool.acquire(KEY));
-    }
-
-    @Test
     public void testPoolQueueRemovalWhenNotInUseWithRelease() throws InterruptedException {
         Pool<Key, Value> pool = newPool(utilizationController());
         Value val = pool.acquire(KEY);
@@ -327,7 +318,7 @@ public class PoolTest {
     }
 
     private Pool<Key, Value> newPool(Controller<Key> controller) {
-        return new Pool<>(generator(), controller, 65536, 1, 1, TimeUnit.MICROSECONDS);
+        return new Pool<>(generator(), controller, 65536, 1, 10, TimeUnit.MICROSECONDS);
     }
 
     private Pool<Key, Value> newPool(Controller<Key> controller, Generator<Key, Value> generator) {
