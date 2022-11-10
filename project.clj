@@ -10,14 +10,23 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]
                                   [junit/junit "4.13"]]}
              :test {:dependencies [[junit/junit "4.13"]]}}
-  :java-source-paths ["src" "test/java"]
+  :java-source-paths ["src"]
+  :test-paths ["test/clojure"]
   :javac-options ["-target" "1.8" "-source" "1.8"]
-  :plugins [[lein-junit "1.1.9"]]
   :junit ["test/java"]
 
   ;; Maven properties for the Maven God
   :scm {:url "git@github.com:clj-commons/dirigiste.git"}
-  :pom-addition ([:organization
+  :pom-plugins [[org.codehaus.mojo/build-helper-maven-plugin "1.7"
+                {:executions
+                 ([:execution [:id "add-test-source"]
+                              [:phase "generate-test-sources"]
+                              [:goals [:goal "add-test-source"]]
+                              [:configuration [:sources [:source "test/java"]]]])}]]
+  :pom-addition ([:properties
+                  [:maven.compiler.source 1.8]
+                  [:maven.compiler.target 1.8]]
+                 [:organization
                   [:name "CLJ Commons"]
                   [:url "http://clj-commons.org/"]]
                  [:developers [:developer

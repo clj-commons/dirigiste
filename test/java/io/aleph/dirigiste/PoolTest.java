@@ -188,15 +188,6 @@ public class PoolTest {
     }
 
     @Test
-    public void testPoolAcquireOnShutdown() throws InterruptedException {
-        Pool<Key,Value> pool = newPool(noopController());
-        Value val = pool.acquire(KEY);
-        pool.release(KEY, val);
-        pool.shutdown();
-        assertThrows(Exception.class, () -> pool.acquire(KEY));
-    }
-
-    @Test
     public void testPoolQueueRemovalWhenNotInUseWithRelease() throws InterruptedException {
         Pool<Key, Value> pool = newPool(utilizationController());
         Value val = pool.acquire(KEY);
@@ -229,7 +220,7 @@ public class PoolTest {
     }
 
     @Test
-    public void testPoolOnAConcurrentEnvironment() throws InterruptedException {
+    public void testPoolOnAHighlyConcurrentEnvironment() throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(30);
         Pool<Key,Value> pool = newPool(utilizationController());
 
@@ -259,7 +250,49 @@ public class PoolTest {
         // be destroyed yet
         assertTrue(available >= 0 && available <= 1000);
         assertTrue(objects >= 0 && objects <= 1000);
-        assertTrue(utilization >= 0 && utilization <= 1);
+        // Utilization can go below 0
+        assertTrue(utilization >= -1 && utilization <= 1);
+
+        // Wait for the controlPeriod
+        Thread.sleep(300);
+        assertNull(pool._queues.get(KEY));
+    }
+
+    @Test
+    public void testPoolOnASmallConcurrentEnvironment() throws InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(30);
+        Pool<Key,Value> pool = newPool(utilizationController());
+
+        List<Future<Boolean>> futures = IntStream.range(0, 5).mapToObj(__ -> executorService.submit(() -> {
+            try {
+                for(int i = 0;i<=100000;i++) {
+                    Value val = pool.acquire(KEY);
+                    pool.dispose(KEY, val);
+                }
+                return true;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        })).collect(Collectors.toList());
+
+        assertTrue(futures.stream().allMatch(f -> {
+            try {
+                return f.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
+
+        int available = pool.queue(KEY).availableObjectsCount();
+        int objects = pool.queue(KEY).objects.get();
+        double utilization = getUtilization(pool);
+
+        // We should have between 0 and 5 objects whether they haven't
+        // be destroyed yet
+        assertTrue(available >= 0 && available <= 5);
+        assertTrue(objects >= 0 && objects <= 5);
+        // Utilization can go below 0
+        assertTrue(utilization >= -1 && utilization <= 1);
 
         // Wait for the controlPeriod
         Thread.sleep(300);
@@ -285,7 +318,7 @@ public class PoolTest {
     }
 
     private Pool<Key, Value> newPool(Controller<Key> controller) {
-        return new Pool<>(generator(), controller, 65536, 10, 100, TimeUnit.MICROSECONDS);
+        return new Pool<>(generator(), controller, 65536, 1, 10, TimeUnit.MICROSECONDS);
     }
 
     private Pool<Key, Value> newPool(Controller<Key> controller, Generator<Key, Value> generator) {
