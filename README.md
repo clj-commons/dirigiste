@@ -17,7 +17,7 @@ Javadocs can be found [here](https://clj-commons.github.io/dirigiste/).
 In Leiningen:
 
 ```clojure
-[org.clj-commons/dirigiste "1.0.3-alpha1"]
+[org.clj-commons/dirigiste "1.0.3"]
 ```
 
 In Maven:
