@@ -8,11 +8,13 @@
   :license {:name "MIT License"}
   :dependencies []
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]
-                                  [junit/junit "4.13"]]}
-             :test {:dependencies [[junit/junit "4.13"]]}}
+                                  [junit/junit "4.13.2"]]
+                   :java-source-paths ["test/java"]}
+             :test {:dependencies [[junit/junit "4.13.2"]]}}
   :java-source-paths ["src"]
   :test-paths ["test/clojure"]
   :javac-options ["-target" "1.8" "-source" "1.8"]
+  :plugins [[lein-junit "1.1.9"]]
   :junit ["test/java"]
 
   ;; Maven properties for the Maven God

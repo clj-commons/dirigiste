@@ -1,3 +1,11 @@
+== 1.0.4-SNAPSHOT
+
+* Config fix for lein-junit so Java tests will run, but not
+get added to the jar file
+* Updated CircleCI config to run Java tests
+
+Contributions by Timothy Dean and Matthew Davidson
+
 == 1.0.3
 
 * Fixed bug ensuring queues are properly removed
