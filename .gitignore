@@ -14,3 +14,5 @@ push
 .DS_Store
 .java-version
 .clj-kondo/.cache/
+.lsp/.cache
+.portal/vs-code.edn
