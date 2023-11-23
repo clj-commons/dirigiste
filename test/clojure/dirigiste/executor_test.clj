@@ -5,6 +5,11 @@
     [java.util
      EnumSet]
     [java.util.concurrent
+     ArrayBlockingQueue
+     FutureTask
+     CompletableFuture
+     ScheduledExecutorService
+     ExecutorService
      RejectedExecutionException
      CountDownLatch
      SynchronousQueue
@@ -134,3 +139,47 @@
                        (- 1 (.getNumWorkers s))))]
     (check-shutdown-now-after (custom-fixed-executor controller) 30)
     (check-shutdown-after (custom-fixed-executor controller) 30)))
+
+(defn- real-workers-count [ex]
+  (count (.get (doto (.getDeclaredField Executor "_workers")
+                 (.setAccessible true)) ex)))
+
+(deftest task-interruption-should-not-kill-workers
+  (let [num-threads (* (.availableProcessors (Runtime/getRuntime)) 4)
+
+        ^ScheduledExecutorService sch-ex
+        (java.util.concurrent.Executors/newSingleThreadScheduledExecutor)
+
+        test-ex (Executor.
+                 (java.util.concurrent.Executors/defaultThreadFactory)
+                 (ArrayBlockingQueue. 60000 false)
+                 (reify Executor$Controller
+                   (shouldIncrement [_ n] (< n num-threads))
+                   (adjustment [_ s] 0))
+                 num-threads
+                 (EnumSet/noneOf Stats$Metric)
+                 25
+                 10000
+                 TimeUnit/MILLISECONDS)
+
+        cancel-task (fn [^FutureTask f]
+                      (when-not (.isDone f)
+                        (.cancel f true)))
+
+        run-with-timeout
+        (fn [^long timeout-ms, f]
+          (let [ex-fut (volatile! nil)
+                f' (fn []
+                     (while (not @ex-fut))
+                     (.schedule sch-ex ^Callable #(cancel-task @ex-fut)
+                                timeout-ms TimeUnit/MILLISECONDS)
+                     (f))]
+            (vreset! ex-fut (.submit ^ExecutorService test-ex ^Callable f'))))]
+    (is (= num-threads (real-workers-count test-ex)))
+    (try (try (dotimes [_ 50000]
+                (run-with-timeout 100 ^Callable #(Thread/sleep 100)))
+              (catch Exception _))
+         (Thread/sleep 1000)
+         (is (= num-threads (real-workers-count test-ex)))
+         (finally (.shutdown test-ex)
+                  (.shutdown sch-ex)))))

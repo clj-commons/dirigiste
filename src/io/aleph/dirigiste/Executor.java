@@ -44,11 +44,10 @@ public class Executor extends AbstractExecutorService {
             Runnable runnable =
                 new Runnable() {
                     public void run() {
-                        try {
+                        _birth = System.nanoTime();
 
-                            _birth = System.nanoTime();
-
-                            while (!_isShutdown) {
+                        while (!_isShutdown) {
+                            try {
                                 Runnable r = (Runnable) _queue.poll(1000, TimeUnit.MILLISECONDS);
 
                                 if (r != null) {
@@ -74,9 +73,15 @@ public class Executor extends AbstractExecutorService {
                                         }
                                     }
                                 }
+                            } catch (InterruptedException e) {
+                                // The worker thread may occasionally catch a
+                                // stray interrupt targetted at the task that
+                                // raced through. We don't want such races to
+                                // kill the worker thread, so ignore and
+                                // continue with the loop. If the interrupt is
+                                // meant for the worker thread, then _isShutdown
+                                // woud be armed as well.
                             }
-                        } catch (InterruptedException e) {
-
                         }
                         _workers.remove(Worker.this);
                         _latch.countDown();
