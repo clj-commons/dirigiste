@@ -220,6 +220,15 @@ public class PoolTest {
     }
 
     @Test
+    public void testPoolIncByOne() throws InterruptedException {
+        Pool<Key,Value> pool = newPool(incByOneController(), generator(), 1 ,10, 100);
+        pool.acquire(KEY);
+        // Let's wait a bit it has been adjusted
+        Thread.sleep(150);
+        assertEquals(pool._queues.get(KEY).objects.get(), 2);
+    }
+
+    @Test
     public void testPoolOnAHighlyConcurrentEnvironment() throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(30);
         Pool<Key,Value> pool = newPool(utilizationController());
@@ -329,6 +338,10 @@ public class PoolTest {
         return new Pool<>(generator, controller, maxQueueSize, 10, 1000, TimeUnit.MICROSECONDS);
     }
 
+    private Pool<Key, Value> newPool(Controller<Key> controller, Generator<Key, Value> generator, int maxQueueSize, int samplePeriod, int controlPeriod) {
+        return new Pool<>(generator, controller, maxQueueSize, samplePeriod, controlPeriod, TimeUnit.MILLISECONDS);
+    }
+
     private double getUtilization(Pool<Key, Value> pool) {
         return pool.getUtilization(pool.queue(KEY).availableObjectsCount(), pool.queue(KEY).getQueueLength(), pool.queue(KEY).objects.get());
     }
@@ -376,6 +389,20 @@ public class PoolTest {
     }
 
     private Controller<Key> noopController() {
+        return new Controller<Key>() {
+            @Override
+            public boolean shouldIncrement(Key key, int objectsForKey, int totalObjects) {
+                return true;
+            }
+
+            @Override
+            public Map<Key, Integer> adjustment(Map<Key, Stats> stats) {
+                return stats.entrySet().stream().collect(toMap(Map.Entry::getKey, __ -> 0));
+            }
+        };
+    }
+
+    private Controller<Key> incByOneController() {
         return new Controller<Key>() {
             @Override
             public boolean shouldIncrement(Key key, int objectsForKey, int totalObjects) {

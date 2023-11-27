@@ -346,7 +346,7 @@ public class Pool<K,V> implements IPool<K,V> {
                     q.drop();
                 }
                 q.cleanup();
-            } else if (n > 1) {
+            } else if (n > 0) {
                 for (int i = 0; i < n; i++) {
                     upward.add(entry.getKey());
                 }
