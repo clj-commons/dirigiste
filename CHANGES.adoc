@@ -1,10 +1,14 @@
-== 1.0.4-SNAPSHOT
+== 1.0.4
 
+* https://github.com/clj-commons/dirigiste/pull/40[#40] Protect workers from
+  shutting down from racy interrupts
+* https://github.com/clj-commons/dirigiste/pull/34[#34] Allow pool size
+  adjustment by 1
 * Config fix for lein-junit so Java tests will run, but not
 get added to the jar file
 * Updated CircleCI config to run Java tests
 
-Contributions by Timothy Dean and Matthew Davidson
+Contributions by Timothy Dean, Matthew Davidson, and Oleksandr Yakushev
 
 == 1.0.3
 
