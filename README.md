@@ -32,7 +32,7 @@ In Maven:
 
 ### executors
 
-Using the default utilization executor is simple, via [`Executors.utilizationExecutor(...)`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executors.html#utilization\(double,%20int\)):
+Using the default utilization executor is simple, via [`Executors.utilizationExecutor(...)`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Executors.html#utilizationExecutor\(double,int\)):
 
 ```java
 import io.aleph.dirigiste.Executors;
@@ -44,9 +44,9 @@ ExecutorService e = Executors.utilizationExecutor(0.9, 64);
 
 This will create an executor which will try to size the pool such that 90% of the threads are active, but will not grow beyond 64 threads.
 
-This executor exposes [`getStats`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executor.html#getStats\(\)) and [`getLastStats`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executor.html#getLastStats\(\)) methods, which can be used to examine the performance characteristics of the executor.  `getLastStats` uses the last value passed to the control loop, so can return immediately.  `getStats` returns the statistics gathered since the last control update, and so may contain 0 or more samples, and requires some amount of computation.
+This executor exposes [`getStats`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Executor.html#getStats\(\)) and [`getLastStats`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Executor.html#getLastStats\(\)) methods, which can be used to examine the performance characteristics of the executor.  `getLastStats` uses the last value passed to the control loop, so can return immediately.  `getStats` returns the statistics gathered since the last control update, and so may contain 0 or more samples, and requires some amount of computation.
 
-Since instrumentation will cause some small overhead, you may specify which dimensions you wish to collect, via the [`Metric`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executor.Metric.html) class.  The possible fields are as follows:
+Since instrumentation will cause some small overhead, you may specify which dimensions you wish to collect, via the [`Metric`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Stats.Metric.html) class.  The possible fields are as follows:
 
 | metric | description |
 |-------|-------------|
@@ -58,10 +58,10 @@ Since instrumentation will cause some small overhead, you may specify which dime
 | `TASK_REJECTION_RATE` | the rate of rejected tasks per second |
 | `UTILIZATION` | the portion of threads which are active, from 0 to 1 |
 
-These metrics are surfaced via the [`Stats`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Stats.html) class, which provides `getMean...()` and `get...(double quantile)` for each metric.  By default, the utilization executor will only measure utilization, but if we want to get the full range of metrics, we can instantiate it like this:
+These metrics are surfaced via the [`Stats`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Stats.html) class, which provides `getMean...()` and `get...(double quantile)` for each metric.  By default, the utilization executor will only measure utilization, but if we want to get the full range of metrics, we can instantiate it like this:
 
 ```java
-Executors.utilizationExecutor(0.9, 64, EnumSet.allOf(Executor.Metric));
+Executors.utilizationExecutor(0.9, 64, EnumSet.allOf(Stats.Metric));
 ```
 
 This will allow us to track metrics which aren't required for the control loop, but are useful elsewhere.
@@ -110,7 +110,7 @@ pool.acquire("foo",
 
 ### creating a custom controller
 
-The [`Executor.Controller`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executor.Controller.html) interface is fairly straightforward:
+The [`Executor.Controller`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Executor.Controller.html) interface is fairly straightforward:
 
 ```java
 public interface Executor.Controller {
@@ -121,7 +121,7 @@ public interface Executor.Controller {
 
 The first method, `shouldIncrement`, controls whether a new thread should be spun up.  This means that the thread limit can be dynamic, for instance dependent on the available memory.  This method will be called whenever `adjustment` calls for more threads, or when a task is unable to be added to the queue.
 
-The second method, `adjustment`, takes a `Stats` object, and returns a number representing how the pool size should be adjusted.  The frequency with which `adjustment` is called is dictated by the `controlPeriod` parameter to the [`Executor`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Executor.html#Executor\(java.util.concurrent.ThreadFactory,%20java.util.concurrent.BlockingQueue,%20io.aleph.dirigiste.Controller,%20java.util.EnumSet,%20long,%20long,%20java.util.concurrent.TimeUnit\)) constructor, and the number of samples in the `Stats` object is controlled by the `samplePeriod` parameter.
+The second method, `adjustment`, takes a `Stats` object, and returns a number representing how the pool size should be adjusted.  The frequency with which `adjustment` is called is dictated by the `controlPeriod` parameter to the [`Executor`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/Executor.html#%3Cinit%3E\(java.util.concurrent.ThreadFactory,java.util.concurrent.BlockingQueue,io.aleph.dirigiste.Executor.Controller,int,java.util.EnumSet,long,long,java.util.concurrent.TimeUnit\)) constructor, and the number of samples in the `Stats` object is controlled by the `samplePeriod` parameter.
 
 The utilization controller is quite simple:
 
@@ -142,12 +142,12 @@ Executor.Controller utilizationController(final double targetUtilization, final 
 
 It adjusts the number of threads using the `targetUtilization` compared against the 90th percentile measured utilization over the last `controlPeriod`.  Obviously more sophisticated methods are possible, but they're left as an exercise for the reader.
 
-[`Pool.Controller`](http://ztellman.github.com/dirigiste/io/aleph/dirigiste/Pool.Controller.html) works much the same, except that `adjustment` takes a `Map` of keys onto `Stats` objects, and returns a `Map` of keys onto `Integer` objects.  The utilization controller is otherwise much the same:
+[`IPool.Controller`](https://clj-commons.org/dirigiste/io/aleph/dirigiste/IPool.Controller.html) works much the same, except that `adjustment` takes a `Map` of keys onto `Stats` objects, and returns a `Map` of keys onto `Integer` objects.  The utilization controller is otherwise much the same:
 
 ```java
-public Pool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
+public IPool.Controller utilizationController(final double targetUtilization, final int maxObjectsPerKey, final int maxTotalObjects) {
 
-  return new Pool.Controller() {
+  return new IPool.Controller() {
     public boolean shouldIncrement(Objec t key, int objectsForKey, int totalObjects) {
       return (objectsForKey < maxObjectsPerKey) && (totalObjects < maxTotalObjects);
     }
